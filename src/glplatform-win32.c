@@ -300,7 +300,7 @@ glplatform_gl_context_t glplatform_create_context(struct glplatform_win *win, in
 	int attribList[] = {
 		WGL_CONTEXT_MAJOR_VERSION_ARB, maj_ver,
 		WGL_CONTEXT_MINOR_VERSION_ARB, min_ver,
-		WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+		WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
 		0
 	};
 
