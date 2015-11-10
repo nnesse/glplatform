@@ -256,7 +256,7 @@ struct glplatform_win *glplatform_create_window(const char *title,
 	RECT wr = { 0, 0, width, height };
 	AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
 
-	HWND hwnd = CreateWindow("glplatform",
+	HWND hwnd = CreateWindowEx(0, "glplatform",
 		title,
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT,
