@@ -1,11 +1,8 @@
 #ifndef GL_WIN_H
 #define GL_WIN_H
 
-#include <stdint.h>
-#include <stdbool.h>
-
 #ifdef _WIN32
-#include <Windows.h>
+#include "minwin.h"
 #else
 #include <X11/Xlib.h>
 #endif
@@ -287,7 +284,7 @@ struct glplatform_win *glplatform_create_window(const char *title,
  */
 void glplatform_destroy_window(struct glplatform_win *win);
 
-
+#ifndef _WIN32
 /*
  * glplatform_get_thread_state()
  *
@@ -306,6 +303,7 @@ void glplatform_get_thread_state(struct glplatform_thread_state *state);
  *
  */
 void glplatform_set_thread_state(const struct glplatform_thread_state *state);
+#endif
 
 /*
  * glplatform_get_events()
