@@ -1,9 +1,9 @@
-AM_CPPFLAGS = -I$(top_srcdir)/include \
-	      -I$(top_srcdir)/include/math \
-	      -I$(top_srcdir)/include/glbindings
+AM_CPPFLAGS = -I$(top_srcdir)/src \
+	      -I$(top_srcdir)/src/math \
+	      -I$(top_srcdir)/src/glbindings
 
 #if WITH_TEXT
-AM_CPPFLAGS += -I$(top_srcdir)/include/text
+AM_CPPFLAGS += -I$(top_srcdir)/src/text
 #enif
 
 lib_LTLIBRARIES = libglplatform.la
@@ -29,10 +29,10 @@ text_render_SOURCES = src/examples/text_render.c
 text_render_CFLAGS = -DTTF_PATH=\"${abs_srcdir}/src/examples/ttf/\"
 text_render_LDADD = libglplatform.la
 
-pkginclude_HEADERS = include/glbindings/glplatform-glcore.h \
-		     include/glbindings/glplatform-glx.h \
-		     include/glplatform.h \
-		     include/math/math3d.h
+pkginclude_HEADERS = src/glbindings/glplatform-glcore.h \
+		     src/glbindings/glplatform-glx.h \
+		     src/glplatform.h \
+		     src/math/math3d.h
 if WITH_TEXT
-pkginclude_HEADERS += include/text/gltext.h
+pkginclude_HEADERS += src/text/gltext.h
 endif
