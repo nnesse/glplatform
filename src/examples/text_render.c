@@ -6,7 +6,7 @@
 #include "glplatform-glcore.h"
 
 #ifdef _WIN32
-#include <Windows.h>
+#include <windows.h>
 #endif
 
 void on_destroy(struct glplatform_win *win)

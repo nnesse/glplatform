@@ -17,7 +17,7 @@ enum vertex_attrib_locations {
 
 #ifdef _WIN32
 #include <intrin.h>
-#include <Windows.h>
+#include <windows.h>
 
 uint32_t __inline clz(uint32_t value)
 {

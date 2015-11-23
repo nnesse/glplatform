@@ -2,10 +2,12 @@
 #define GL_WIN_H
 
 #ifdef _WIN32
-#include "minwin.h"
+#include <windows.h>
 #else
 #include <X11/Xlib.h>
 #endif
+#include <stdint.h>
+#include <stdbool.h>
 
 struct glplatform_win;
 
