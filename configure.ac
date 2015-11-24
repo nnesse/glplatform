@@ -15,6 +15,10 @@ if test x$enable_math3d = x; then
 	enable_math3d="yes"
 fi
 
+if test $host_os = 'mingw32'; then
+	enable_text="no"
+fi
+
 AS_IF([ test $enable_text = yes ],
 	[PKG_CHECK_MODULES(FREETYPE2,freetype2 >= 2.53, [ enable_text="yes" ], [ enable_text="no" ])])
 
