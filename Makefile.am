@@ -12,8 +12,7 @@ AM_CPPFLAGS += -I$(top_srcdir)/src/text
 lib_LTLIBRARIES = libglplatform.la
 libglplatform_la_LIBADD=$(FREETYPE2_LIBS)
 libglplatform_la_CFLAGS=-std=c99 $(FREETYPE2_CFLAGS)
-libglplatform_la_SOURCES = src/glbindings/glplatform-glcore.c \
-			   src/glbindings/glplatform-wgl.c
+libglplatform_la_SOURCES = src/glbindings/glplatform-glcore.c
 
 if WINDOWS
 libglplatform_la_SOURCES += src/glplatform-win32.c \
