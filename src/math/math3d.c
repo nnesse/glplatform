@@ -77,6 +77,16 @@ void math3d_vec3_cross(struct math3d_vec3 *a, struct math3d_vec3 *b, struct math
 	c->v[2] = a->v[0] * b->v[1] - a->v[1] * b->v[0];
 }
 
+void math3d_mat4_lerp(const struct math3d_mat4 *a, const struct math3d_mat4 *b, float d, struct math3d_mat4 *c)
+{
+	int i,j;
+	for (i = 0; i < 4; i++) {
+		for (j = 0; j < 4; j++) {
+			c->v[i][j] = a->v[i][j] * (1-d) + b->v[i][j] * d;
+		}
+	}
+}
+
 void math3d_vec3_lerp(const struct math3d_vec3 *v1, const struct math3d_vec3 *v2, float d, struct math3d_vec3 *v3)
 {
 	int i;

@@ -116,6 +116,8 @@ void math3d_vec3_lerp(const struct math3d_vec3 *v1, const struct math3d_vec3 *v2
 //
 void math3d_vec3_normalize(struct math3d_vec3 *v);
 
+void math3d_mat4_lerp(const struct math3d_mat4 *a, const struct math3d_mat4 *b, float d, struct math3d_mat4 *c);
+
 //
 // math3d_spherical_lerp(v1, v2, d, v3)
 //
