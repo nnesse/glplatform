@@ -65,11 +65,6 @@ int main()
 		glViewport(0, 0, width, height);
 		glClearColor(0,0,0,1);
 		glClear(GL_COLOR_BUFFER_BIT);
-		float mvp[16] = {
-			2.0f/width,0,0,0,
-			0,-2.0f/height,0,0,
-			0,0,1,0,
-			-1,0,0,1};
 
 		const char *str = "The quick brown fox jumps over the lazy dog()'\"0123456789`~!@#$%^&*()_+;/?.>,<={}[]\\";
 		struct gltext_glyph_instance *r = gltext_renderer_prepare_render(renderer, font, (int)strlen(str));
@@ -93,6 +88,12 @@ int main()
 			str++;
 			g_prev = g_cur;
 		}
+		x_pos += gltext_get_advance(g_prev, NULL);
+		float mvp[16] = {
+			2.0f/width,0,0,0,
+			0,-2.0f/height,0,0,
+			0,0,1,0,
+			-1 + ((width)-(x_pos))*(2.0f/width),1 + (height/2)*(-2.0f/height),0,1};
 		gltext_renderer_submit_render(renderer, &color, mvp);
 		glplatform_swap_buffers(win);
 
