@@ -15,24 +15,6 @@ enum vertex_attrib_locations {
 	GLYPH_INDEX_LOC = 1
 };
 
-#ifdef _WIN32
-#include <intrin.h>
-#include <windows.h>
-
-uint32_t __inline clz(uint32_t value)
-{
-	DWORD leading_zero = 0;
-	if (_BitScanReverse(&leading_zero, value)) {
-		return 31 - leading_zero;
-	}
-	else {
-		return 32;
-	}
-}
-#else
-#define clz(x) __builtin_clz(x)
-#endif
-
 //
 // font
 //
@@ -47,6 +29,7 @@ struct gltext_font {
 	GLuint atlas_texture;
 	GLuint glyph_metric_texture;
 	GLuint glyph_metric_texture_buffer;
+	const char *charset;
 	int max_char;
 };
 
@@ -65,9 +48,9 @@ const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, char c)
 }
 
 //
-// renderer
+// gltext_renderer
 //
-struct renderer
+struct gltext_renderer
 {
 	//
 	// Freetype state
@@ -89,13 +72,38 @@ struct renderer
 	int mvp_loc;
 	int num_chars;
 
-	const char *charset;
-	int max_char;
-
 	bool initialized;
 };
 
-static bool init_program(struct renderer *inst);
+#ifndef _WIN32
+static struct gltext_renderer *g_text_renderer = NULL;
+
+static struct gltext_renderer *get_renderer()
+{
+	if (!g_text_renderer) {
+		struct gltext_renderer *inst = calloc(1, sizeof(struct gltext_renderer));
+		FT_Init_FreeType(&inst->ft_library);
+		g_text_renderer = inst;
+	}
+	return g_text_renderer;
+}
+#else
+#include <windows.h>
+#include "glplatform_priv.h"
+static struct gltext_renderer *get_renderer()
+{
+	struct glplatform_context *context = glplatform_get_context_priv();
+	if (!context)
+		return NULL;
+	if (!context->text_renderer) {
+		struct gltext_renderer *inst = calloc(1, sizeof(struct gltext_renderer));
+		FT_Init_FreeType(&inst->ft_library);
+		context->text_renderer = inst;
+	}
+	return context->text_renderer;
+}
+#endif
+static bool init_program(struct gltext_renderer *inst);
 
 float gltext_get_advance(const struct gltext_glyph *prev, const struct gltext_glyph *next)
 {
@@ -120,10 +128,10 @@ float gltext_get_advance(const struct gltext_glyph *prev, const struct gltext_gl
 	return ret;
 }
 
-struct gltext_glyph_instance *gltext_renderer_prepare_render(gltext_renderer_t renderer_, gltext_font_t font_, int num_chars)
+struct gltext_glyph_instance *gltext_prepare_render(gltext_font_t font_, int num_chars)
 {
 	struct gltext_font *font = (struct gltext_font *)(font_);
-	struct renderer *inst = (struct renderer *)renderer_;
+	struct gltext_renderer *inst = get_renderer();
 
 	//Create GLSL program if neccisary
 	if (!inst->initialized) {
@@ -157,9 +165,9 @@ struct gltext_glyph_instance *gltext_renderer_prepare_render(gltext_renderer_t r
 	return ret;
 }
 
-void gltext_renderer_submit_render(gltext_renderer_t renderer, const struct gltext_color *color, const float *mvp)
+void gltext_submit_render(const struct gltext_color *color, const float *mvp)
 {
-	struct renderer *inst = (struct renderer *)renderer;
+	struct gltext_renderer *inst = get_renderer();
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glUnmapBuffer(GL_ARRAY_BUFFER);
@@ -170,31 +178,10 @@ void gltext_renderer_submit_render(gltext_renderer_t renderer, const struct glte
 	glDrawArrays(GL_POINTS, 0, inst->num_chars);
 }
 
-gltext_renderer_t gltext_renderer_new(const char *charset)
-{
-	struct renderer *inst = malloc(sizeof(struct renderer));
-	memset(inst, 0, sizeof(*inst));
-	inst->ft_library = NULL;
-	inst->glsl_program = 0;
-	inst->fragment_shader = 0;
-	inst->vertex_shader = 0;
-	inst->geometry_shader = 0;
-	inst->initialized = false;
-	inst->charset = charset;
-	FT_Init_FreeType(&inst->ft_library);
-
-	int max_char = 0;
-	for (const char *c = inst->charset; *c; c++)
-		if (*c > max_char)
-			max_char = *c;
-
-	if ('\n' > max_char)
-		max_char = '\n';
-	inst->max_char = max_char;
-
-	return inst;
-}
-
+//Renderere is now automatically allocated. It should be associated
+//with a context and free'd with that context. Commenting out the
+//free routine for now until there are hooks to call itgc
+#if 0
 void gltext_renderer_free(gltext_renderer_t renderer)
 {
 	struct renderer *inst = (struct renderer *)renderer;
@@ -210,11 +197,12 @@ void gltext_renderer_free(gltext_renderer_t renderer)
 		FT_Done_FreeType(inst->ft_library);
 	free(inst);
 }
+#endif
 
-gltext_typeface_t gltext_renderer_get_typeface(gltext_renderer_t renderer, const char *path)
+gltext_typeface_t gltext_get_typeface(const char *path)
 {
 	FT_Face face;
-	struct renderer *inst = (struct renderer *)renderer;
+	struct gltext_renderer *inst = get_renderer();
 	int error = FT_New_Face(inst->ft_library, path, 0, &face);
 	if (error) {
 		return NULL;
@@ -222,7 +210,7 @@ gltext_typeface_t gltext_renderer_get_typeface(gltext_renderer_t renderer, const
 	return face;
 }
 
-static bool init_program(struct renderer *inst)
+static bool init_program(struct gltext_renderer *inst)
 {
 	const char *vertex_shader_text =
 		"#version 330\n"
@@ -431,9 +419,11 @@ void gltext_font_destroy_texture(gltext_font_t font_)
 	}
 }
 
-gltext_font_t gltext_font_create(gltext_renderer_t renderer, gltext_typeface_t typeface_, int size)
+gltext_font_t gltext_font_create(const char *charset,
+	gltext_typeface_t typeface_,
+	int size)
 {
-	struct renderer *inst = (struct renderer *)renderer;
+	struct gltext_renderer *inst = get_renderer();
 	if (!inst->ft_library)
 		return false;
 
@@ -441,21 +431,29 @@ gltext_font_t gltext_font_create(gltext_renderer_t renderer, gltext_typeface_t t
 
 	f->size = size;
 	f->typeface = typeface_;
-	f->max_char = inst->max_char;
 	FT_Face typeface = (FT_Face) f->typeface;
 
-	int total_glyphs = (int)strlen(inst->charset);
+	int total_glyphs = (int)strlen(charset);
 	f->total_glyphs = total_glyphs;
 
 	if (!typeface)
 		return false;
 
-	f->glyph_array = calloc((inst->max_char + 1), sizeof(struct gltext_glyph));
+	int max_char = 0;
+	for (const char *c = charset; *c; c++)
+		if (*c > max_char)
+			max_char = *c;
+
+	if ('\n' > max_char)
+		max_char = '\n';
+	f->max_char = max_char;
+	f->charset = charset;
+	f->glyph_array = calloc((f->max_char + 1), sizeof(struct gltext_glyph));
 	FT_Set_Pixel_Sizes(typeface, size, size);
 
 	int max_dim = 0;
 
-	for (const char *c = inst->charset; *c; c++) {
+	for (const char *c = f->charset; *c; c++) {
 		struct gltext_glyph *g = f->glyph_array + (*c);
 		int index = FT_Get_Char_Index(typeface, *c);
 		FT_Load_Glyph(typeface, index, 0/* flags */);
@@ -484,13 +482,13 @@ gltext_font_t gltext_font_create(gltext_renderer_t renderer, gltext_typeface_t t
 	if (max_dim < 16) {
 		pot_size = 16;
 	} else {
-		pot_size = 1 << (32 - clz(max_dim));
+		pot_size = 1 << (32 - __builtin_clz(max_dim));
 	}
 	f->pot_size = pot_size;
 	f->glyph_array['\n'].c = '\n';
 	f->glyph_array['\n'].font = f;
 	int w = 0;
-	for (const char *c = inst->charset; *c; c++) {
+	for (const char *c = f->charset; *c; c++) {
 		struct gltext_glyph *g = f->glyph_array + (*c);
 		g->w = w++;
 		g->font = f;
@@ -509,7 +507,7 @@ gltext_font_t gltext_font_create(gltext_renderer_t renderer, gltext_typeface_t t
 	double *dist = (double *)malloc(texels_per_layer * sizeof(double));
 
 	uint8_t *layer_ptr = atlas_buffer;
-	for (const char *c = inst->charset; *c; c++) {
+	for (const char *c = f->charset; *c; c++) {
 		struct gltext_glyph *g = f->glyph_array + (*c);
 		uint8_t *dest = layer_ptr + (pot_size * 8) + 8;
 		uint8_t *source = g->bitmap_bits;

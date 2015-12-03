@@ -17,6 +17,7 @@
 #undef wglCreateContext
 
 #include <windowsx.h>
+#include "glplatform_priv.h"
 
 static LRESULT CALLBACK PlatformWndProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 
@@ -69,6 +70,13 @@ static void register_glplatform_win(struct glplatform_win *win)
 //TODO
 //bool glplatform_is_control_pressed(struct glplatform_win *win)
 
+DWORD g_context_tls;
+
+struct glplatform_context *glplatform_get_context_priv()
+{
+	return (struct glplatform_context *)TlsGetValue(g_context_tls);
+}
+
 bool glplatform_init()
 {
 	WNDCLASSEX wc;
@@ -85,14 +93,20 @@ bool glplatform_init()
 	wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
 	wc.lpszMenuName = NULL;
 
-	if (RegisterClassEx(&wc) == 0) {
+	if (RegisterClassEx(&wc) == 0)
 		return false;
-	}
+
+	g_context_tls = TlsAlloc();
+
+	if (g_context_tls == TLS_OUT_OF_INDEXES)
+		return false;
+
 	return true;
 }
 
 void glplatform_shutdown()
 {
+	TlsFree(g_context_tls);
 }
 
 static LRESULT CALLBACK windows_event(struct glplatform_win *win, HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
@@ -295,9 +309,16 @@ struct glplatform_win *glplatform_create_window(const char *title,
 //TODO
 //void glplatform_set_win_type(struct glplatform_win *win, enum glplatform_win_types type)
 
-void glplatform_make_current(struct glplatform_win *win, glplatform_gl_context_t context)
+
+void glplatform_make_current(struct glplatform_win *win, glplatform_gl_context_t ctx)
 {
-	wglMakeCurrent(win->hdc, (HGLRC)context);
+	struct glplatform_context *context = (struct glplatform_context*)ctx;
+
+	TlsSetValue(g_context_tls, context);
+	if (context)
+		wglMakeCurrent(win->hdc, context->rc);
+	else
+		wglMakeCurrent(win->hdc, 0);
 }
 
 glplatform_gl_context_t glplatform_create_context(struct glplatform_win *win, int maj_ver, int min_ver)
@@ -315,7 +336,12 @@ glplatform_gl_context_t glplatform_create_context(struct glplatform_win *win, in
 	};
 
 	HGLRC rc = wglCreateContextAttribsARB(win->hdc, 0, attribList);
-	return (glplatform_gl_context_t)rc;
+
+	if (!rc)
+		return 0;
+	struct glplatform_context *context = calloc(1, sizeof(struct glplatform_context));
+	context->rc = rc;
+	return (glplatform_gl_context_t)context;
 }
 
 //TODO:

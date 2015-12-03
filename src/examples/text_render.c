@@ -24,14 +24,16 @@ int CALLBACK WinMain(
 int main()
 #endif
 {
-	gltext_renderer_t renderer;
 	gltext_font_t font;
 
 	struct glplatform_win_callbacks cb = {
 		.on_destroy = on_destroy
 	};
 
-	renderer = gltext_renderer_new(" abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'\"0123456789`~!@#$%^&*()_+;/?.>,<={}[]\\");
+
+	const char *charset = " abcdefghijklmnopqrstuvwxyz"
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		"'\"0123456789`~!@#$%^&*()_+;/?.>,<={}[]\\";
 
 	if (!glplatform_init()) {
 		fprintf(stderr, "Failed to initialize GL window manager\n");
@@ -52,7 +54,10 @@ int main()
 	glplatform_make_current(win, ctx);
 	glplatform_glcore_init(3, 3);
 
-	font = gltext_font_create(renderer, gltext_renderer_get_typeface(renderer, TTF_PATH "LiberationSans-Regular.ttf"), 20);
+	font = gltext_font_create(charset,
+		gltext_get_typeface(TTF_PATH "LiberationSans-Regular.ttf"),
+		20);
+
 	if (!font) {
 		fprintf(stderr, "Failed to create font\n");
 		exit(-1);
@@ -67,7 +72,7 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		const char *str = "The quick brown fox jumps over the lazy dog()'\"0123456789`~!@#$%^&*()_+;/?.>,<={}[]\\";
-		struct gltext_glyph_instance *r = gltext_renderer_prepare_render(renderer, font, (int)strlen(str));
+		struct gltext_glyph_instance *r = gltext_prepare_render(font, (int)strlen(str));
 
 		const struct gltext_glyph *g_prev = NULL;
 		float x_pos = 0;
@@ -94,7 +99,7 @@ int main()
 			0,-2.0f/height,0,0,
 			0,0,1,0,
 			-1 + ((width)-(x_pos))*(2.0f/width),1 + (height/2)*(-2.0f/height),0,1};
-		gltext_renderer_submit_render(renderer, &color, mvp);
+		gltext_submit_render(&color, mvp);
 		glplatform_swap_buffers(win);
 
 		if (glplatform_get_events(true) < 0)

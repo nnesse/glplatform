@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef void *gltext_renderer_t;
 typedef void *gltext_typeface_t;
 typedef void *gltext_font_t;
 
@@ -76,38 +75,21 @@ struct gltext_glyph_instance {
 float gltext_get_advance(const struct gltext_glyph *prev, const struct gltext_glyph *next);
 
 /*
- * gltext_renderer_get_typeface()
+ * gltext_get_typeface()
  *
  * Returns an opaque handle to a TTF typeface given a path to the file.
  *
  */
-gltext_typeface_t gltext_renderer_get_typeface(gltext_renderer_t renderer, const char *path);
-
-/*
- * gltext_renderer_new()
- *
- * Returns an opaque handle to a text renderer that supports rendering characters in the array
- * 'charset'
- *
- */
-gltext_renderer_t gltext_renderer_new(const char *charset);
-
-/*
- * gltext_renderer_free()
- *
- * Free a previously created renderer.
- *
- */
-void gltext_renderer_free(gltext_renderer_t renderer);
+gltext_typeface_t gltext_get_typeface(const char *path);
 
 /*
  *
  * gltext_font_create()
  *
- * Create a font for a specific typeface.
+ * Create a font for a specific typeface and charset.
  *
  */
-gltext_font_t gltext_font_create(gltext_renderer_t renderer, gltext_typeface_t typeface, int font_size);
+gltext_font_t gltext_font_create(const char *charset, gltext_typeface_t typeface, int font_size);
 
 
 /*
@@ -152,21 +134,21 @@ bool gltext_font_free(gltext_font_t font);
 const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, char c);
 
 /*
- * gltext_renderer_prepare_render()
+ * gltext_prepare_render()
  *
  * Returns an array of uninitialized gltext_glyph_instance structures. After the values are filled
- * out by the application the glyphs can be rendered using gltext_renderer_submit_render(). The
+ * out by the application the glyphs can be rendered using gltext_submit_render(). The
  * positions of the glyphs can be computed by using gltext_get_advance(). The 'w' texture layer
  * field values should be taken from the 'w' field of the supplied font's associated gltext_glyph
- * structures. Undefined behavior will result if gltext_renderer_prepare_render() is called more
- * than once before calling gltext_renderer_submit_render().
+ * structures. Undefined behavior will result if gltext_repare_render() is called more
+ * than once before calling gltext_submit_render().
  */
- struct gltext_glyph_instance *gltext_renderer_prepare_render(gltext_renderer_t renderer, gltext_font_t font, int num_chars);
+ struct gltext_glyph_instance *gltext_prepare_render(gltext_font_t font, int num_chars);
 
  /*
-  * gltext_renderer_submit_render()
+  * gltext_submit_render()
   *
-  * Render glyphs instances previously returned by gltext_renderer_prepare_render().
+  * Render glyphs instances previously returned by gltext_prepare_render().
   *
   * color - RGBA color to render glyphs
   *
@@ -185,6 +167,6 @@ const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, char c);
   * Small font sizes display best when aligned to exact window coordinates
   * with integral glyph positions.
   */
- void gltext_renderer_submit_render(gltext_renderer_t renderer, const struct gltext_color *color, const float *mvp);
+ void gltext_submit_render(const struct gltext_color *color, const float *mvp);
 
 #endif
