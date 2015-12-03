@@ -71,9 +71,9 @@ struct gltext_renderer
 	int glyph_metric_sampler_loc;
 	int mvp_loc;
 	int num_chars;
-
-	bool initialized;
 };
+
+static bool init_renderer(struct gltext_renderer *inst);
 
 #ifndef _WIN32
 static struct gltext_renderer *g_text_renderer = NULL;
@@ -82,13 +82,17 @@ static struct gltext_renderer *get_renderer()
 {
 	if (!g_text_renderer) {
 		struct gltext_renderer *inst = calloc(1, sizeof(struct gltext_renderer));
-		FT_Init_FreeType(&inst->ft_library);
+		if (!inst)
+			return NULL;
+		if (!init_renderer(inst)) {
+			free(inst);
+			return NULL;
+		}
 		g_text_renderer = inst;
 	}
 	return g_text_renderer;
 }
 #else
-#include <windows.h>
 #include "glplatform_priv.h"
 static struct gltext_renderer *get_renderer()
 {
@@ -97,13 +101,17 @@ static struct gltext_renderer *get_renderer()
 		return NULL;
 	if (!context->text_renderer) {
 		struct gltext_renderer *inst = calloc(1, sizeof(struct gltext_renderer));
-		FT_Init_FreeType(&inst->ft_library);
+		if (!inst)
+			return NULL;
+		if (!init_renderer(inst)) {
+			free(inst);
+			return NULL;
+		}
 		context->text_renderer = inst;
 	}
 	return context->text_renderer;
 }
 #endif
-static bool init_program(struct gltext_renderer *inst);
 
 float gltext_get_advance(const struct gltext_glyph *prev, const struct gltext_glyph *next)
 {
@@ -133,12 +141,8 @@ struct gltext_glyph_instance *gltext_prepare_render(gltext_font_t font_, int num
 	struct gltext_font *font = (struct gltext_font *)(font_);
 	struct gltext_renderer *inst = get_renderer();
 
-	//Create GLSL program if neccisary
-	if (!inst->initialized) {
-		if (!init_program(inst))
-			return false;
-		inst->initialized = true;
-	}
+	if (!inst)
+		return NULL;
 
 	if (!font->atlas_texture)
 		gltext_font_create_texture(font_);
@@ -168,6 +172,8 @@ struct gltext_glyph_instance *gltext_prepare_render(gltext_font_t font_, int num
 void gltext_submit_render(const struct gltext_color *color, const float *mvp)
 {
 	struct gltext_renderer *inst = get_renderer();
+	if (!inst)
+		return;
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glUnmapBuffer(GL_ARRAY_BUFFER);
@@ -203,6 +209,9 @@ gltext_typeface_t gltext_get_typeface(const char *path)
 {
 	FT_Face face;
 	struct gltext_renderer *inst = get_renderer();
+	if (!inst)
+		return NULL;
+
 	int error = FT_New_Face(inst->ft_library, path, 0, &face);
 	if (error) {
 		return NULL;
@@ -210,8 +219,11 @@ gltext_typeface_t gltext_get_typeface(const char *path)
 	return face;
 }
 
-static bool init_program(struct gltext_renderer *inst)
+static bool init_renderer(struct gltext_renderer *inst)
 {
+	FT_Init_FreeType(&inst->ft_library);
+	if (!inst->ft_library)
+		return false;
 	const char *vertex_shader_text =
 		"#version 330\n"
 		"layout (location = 0) in vec2 pos_v;\n"
@@ -282,6 +294,7 @@ static bool init_program(struct gltext_renderer *inst)
 	glCompileShader(inst->geometry_shader);
 	glGetShaderiv(inst->geometry_shader, GL_COMPILE_STATUS, &success);
 	if (!success) {
+		FT_Done_FreeType(inst->ft_library);
 		char info_log[1000];
 		glGetShaderInfoLog(inst->geometry_shader, sizeof(info_log), NULL, info_log);
 		printf("renderer: Geometry shader compile failed\n%s", info_log);
@@ -295,6 +308,7 @@ static bool init_program(struct gltext_renderer *inst)
 	glCompileShader(inst->fragment_shader);
 	glGetShaderiv(inst->fragment_shader, GL_COMPILE_STATUS, &success);
 	if (!success) {
+		FT_Done_FreeType(inst->ft_library);
 		char info_log[1000];
 		glGetShaderInfoLog(inst->fragment_shader, sizeof(info_log), NULL, info_log);
 		printf("renderer: Fragment shader compile failed\n%s", info_log);
@@ -310,6 +324,7 @@ static bool init_program(struct gltext_renderer *inst)
 	glCompileShader(inst->vertex_shader);
 	glGetShaderiv(inst->vertex_shader, GL_COMPILE_STATUS, &success);
 	if (!success) {
+		FT_Done_FreeType(inst->ft_library);
 		char info_log[1000];
 		glGetShaderInfoLog(inst->vertex_shader, sizeof(info_log), NULL, info_log);
 		printf("renderer: Vertex shader compile failed\n%s", info_log);
@@ -329,6 +344,7 @@ static bool init_program(struct gltext_renderer *inst)
 	glLinkProgram(inst->glsl_program);
 	glGetProgramiv(inst->glsl_program, GL_LINK_STATUS, &success);
 	if (!success) {
+		FT_Done_FreeType(inst->ft_library);
 		char info_log[1000];
 		glGetProgramInfoLog(inst->glsl_program, sizeof(info_log), NULL, info_log);
 		printf("renderer: Program link failed\n%s", info_log);
@@ -424,8 +440,8 @@ gltext_font_t gltext_font_create(const char *charset,
 	int size)
 {
 	struct gltext_renderer *inst = get_renderer();
-	if (!inst->ft_library)
-		return false;
+	if (!inst)
+		return 0;
 
 	struct gltext_font *f = (struct gltext_font *)calloc(1, sizeof(struct gltext_font));
 
@@ -437,7 +453,7 @@ gltext_font_t gltext_font_create(const char *charset,
 	f->total_glyphs = total_glyphs;
 
 	if (!typeface)
-		return false;
+		return 0;
 
 	int max_char = 0;
 	for (const char *c = charset; *c; c++)
