@@ -52,7 +52,7 @@ When creating a context you must specify which OpenGL version your application r
 
 Example: Creating a OpenGL 3.3 core profile compatible context
 
-	struct glplatform_win *win = glplatform_create_window("Hello window", &cb, 512, 512);
+	struct glplatform_win *win = glplatform_create_window("Hello window", &cb, NULL, 512, 512);
 
 	//...
 
