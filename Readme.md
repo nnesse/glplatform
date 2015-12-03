@@ -90,6 +90,21 @@ Example: Initializing OpenGL bindings
 See the `glbindify` documentation for details. Note that `glplatform` uses the namespace feature of `glbindify` so where the documentation refers to `glb` or `GLB` you should substitute `glplatform` or `GLPLATFORM`
 respectively.
 
+Text rendering
+--------------
+
+glplatform contains a text renderer that
+
+- Is data Driven for minimal driver overhead
+
+- Works on OpenGL 3.x and higher
+
+- Uses libfreetype for text rasterization
+
+glplatform's text renderer can render transformed text with minimal distortion as well as render untransformed text with high quality anti-aliasing. Its design focuses on simplicity, performance, and control.
+
+To render text an application first requests an array of glyph instance structures. The application must then fill the entries with glyph positions and glyph identifiers. Finally the application submits the draw specifying the color and transform to perform the rendering with. Glyph metrics and kerning information that can be queried from the API to help the application layout the glyphs. The render call supports rotation and scaling of the text in three dimentions.
+
 Building
 --------
 
