@@ -100,9 +100,9 @@ static bool init_program(struct renderer *inst);
 float gltext_get_advance(const struct gltext_glyph *prev, const struct gltext_glyph *next)
 {
 	float ret = 0;
-	if (prev) {
+	if (next && prev) {
 		int d = prev->advance_x;
-		if (next && prev->font == next->font) {
+		if (prev->font == next->font) {
 			FT_Vector delta;
 			const struct gltext_font *font = prev->font;
 			if (!FT_Get_Kerning(font->typeface,
@@ -114,6 +114,8 @@ float gltext_get_advance(const struct gltext_glyph *prev, const struct gltext_gl
 			}
 		}
 		ret += (float)d/64.0f;
+	} else if (prev && !next) {
+		ret = prev->left + prev->bitmap_width;
 	}
 	return ret;
 }
