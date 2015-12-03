@@ -1,6 +1,8 @@
 AC_PREREQ(2.59)
 AC_INIT(glplatform, 0.3)
 
+AC_CONFIG_MACRO_DIRS([m4])
+
 AC_CANONICAL_SYSTEM
 
 AM_INIT_AUTOMAKE([foreign subdir-objects])

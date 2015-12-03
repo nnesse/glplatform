@@ -1,0 +1,2 @@
+This file added so that the m4 directory can be added to git to keep autotools
+happy. It should be removed if any m4 files are added here.
