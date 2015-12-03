@@ -124,6 +124,16 @@ static LRESULT CALLBACK windows_event(struct glplatform_win *win, HWND hWnd, UIN
 	GetClientRect(hWnd, &cr);
 
 	switch (Msg) {
+	case WM_SETCURSOR: {
+		WORD ht = LOWORD(lParam);
+		ShowCursor(TRUE);
+		if (ht == HTCLIENT) {
+			SetCursor(NULL);
+			return TRUE;
+		} else {
+			return DefWindowProc(hWnd, Msg, wParam, lParam);
+		}
+	} break;
 	case WM_PAINT: {
 		if (win->callbacks.on_expose)
 			win->callbacks.on_expose(win);
@@ -155,7 +165,6 @@ static LRESULT CALLBACK windows_event(struct glplatform_win *win, HWND hWnd, UIN
 		pfd.cStencilBits = win->fbformat.stencil_bits;
 		pfd.cAccumBits = win->fbformat.accum_bits;
 		pfd.cDepthBits = win->fbformat.depth_bits;
-
 		win->pixel_format = ChoosePixelFormat(win->hdc, &pfd);
 		if (win->pixel_format == 0) {
 			return -1;
