@@ -90,7 +90,7 @@ bool glplatform_init()
 	wc.hIcon = NULL;
 	wc.hIconSm = NULL;
 	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
+	wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
 	wc.lpszMenuName = NULL;
 
 	if (RegisterClassEx(&wc) == 0)
