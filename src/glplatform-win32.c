@@ -276,7 +276,7 @@ struct glplatform_win *glplatform_create_window(const char *title,
 	struct glplatform_win *win = (struct glplatform_win *) malloc(sizeof(struct glplatform_win));
 	win->fbformat = *fbformat;
 	win->callbacks = *callbacks;
-
+	win->fullscreen = false;
 	RECT wr = { 0, 0, width, height };
 	AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
 
@@ -296,6 +296,7 @@ struct glplatform_win *glplatform_create_window(const char *title,
 		free(win);
 		return NULL;
 	}
+	win->hwnd = hwnd;
 	register_glplatform_win(win);
 	if (win->callbacks.on_create)
 		win->callbacks.on_create(win);
@@ -344,8 +345,28 @@ glplatform_gl_context_t glplatform_create_context(struct glplatform_win *win, in
 	return (glplatform_gl_context_t)context;
 }
 
-//TODO:
-//void glplatform_fullscreen_win(struct glplatform_win *win, bool fullscreen)
+void glplatform_fullscreen_win(struct glplatform_win *win, bool fullscreen)
+{
+	DWORD dwStyle = GetWindowLong(win->hwnd, GWL_STYLE);
+	if (fullscreen && !win->fullscreen) {
+		MONITORINFO mi = { sizeof(mi) };
+		GetWindowPlacement(win->hwnd, &win->prev_placement);
+		GetMonitorInfo(MonitorFromWindow(win->hwnd, MONITOR_DEFAULTTOPRIMARY), &mi);
+		SetWindowLong(win->hwnd, GWL_STYLE, dwStyle & ~WS_OVERLAPPEDWINDOW);
+		SetWindowPos(win->hwnd, HWND_TOP,
+			mi.rcMonitor.left, mi.rcMonitor.top,
+			mi.rcMonitor.right - mi.rcMonitor.left,
+			mi.rcMonitor.bottom - mi.rcMonitor.top,
+			SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+	} else if (!fullscreen && win->fullscreen) {
+		SetWindowLong(win->hwnd, GWL_STYLE, dwStyle | WS_OVERLAPPEDWINDOW);
+		SetWindowPlacement(win->hwnd, &win->prev_placement);
+		SetWindowPos(win->hwnd, NULL, 0, 0, 0, 0,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+			SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+	}
+	win->fullscreen = fullscreen;
+}
 
 int glplatform_get_events(bool block)
 {

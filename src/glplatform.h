@@ -209,6 +209,8 @@ struct glplatform_win {
 	int pixel_format;
 	HDC hdc;
 	HWND hwnd;
+	WINDOWPLACEMENT prev_placement;
+	bool fullscreen;
 #else
 	uint32_t window; //Window xid
 	void *fb_config; //GLXFBConfig
