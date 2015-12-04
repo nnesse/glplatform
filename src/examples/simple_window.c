@@ -42,7 +42,6 @@ int main()
 	if (!win)
 		exit(-1);
 
-	glplatform_show_window(win);
 	glplatform_gl_context_t ctx = glplatform_create_context(win, 3, 3);
 	if (!ctx)
 		exit(-1);
@@ -50,11 +49,11 @@ int main()
 	if (!glplatform_glcore_init(3, 3)) {
 		exit(-1);
 	}
+	glplatform_show_window(win);
 	while (glplatform_process_events()) {
 		glClearColor(0,0,1,1);
 		glClear(GL_COLOR_BUFFER_BIT);
 		glplatform_swap_buffers(win);
-
 		if (glplatform_get_events(true) < 0)
 			break;
 	}

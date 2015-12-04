@@ -45,7 +45,6 @@ int main()
 		fprintf(stderr, "Failed to create OpenGL window\n");
 		exit(-1);
 	}
-	glplatform_show_window(win);
 	glplatform_gl_context_t ctx = glplatform_create_context(win, 3, 3);
 	if (!ctx) {
 		fprintf(stderr, "Failed to create OpenGL context\n");
@@ -62,6 +61,7 @@ int main()
 		fprintf(stderr, "Failed to create font\n");
 		exit(-1);
 	}
+	glplatform_show_window(win);
 
 	while (glplatform_process_events()) {
 		int width, height;
