@@ -61,14 +61,31 @@ static void register_glplatform_win(struct glplatform_win *win)
 	g_win_list = win;
 }
 
-//TODO
-//bool glplatform_is_button_pressed(struct glplatform_win *win, int button)
+#define PRESSED_MASK ((SHORT)0x8000)
 
-//TODO
-//bool glplatform_is_shift_pressed(struct glplatform_win *win)
+bool glplatform_is_button_pressed(struct glplatform_win *win, int button)
+{
+	switch (button) {
+	case 0:
+		return GetKeyState(VK_LBUTTON) & PRESSED_MASK;
+	case 1:
+		return GetKeyState(VK_MBUTTON) & PRESSED_MASK;
+	case 2:
+		return GetKeyState(VK_RBUTTON) & PRESSED_MASK;
+	default:
+		return false;
+	}
+}
 
-//TODO
-//bool glplatform_is_control_pressed(struct glplatform_win *win)
+bool glplatform_is_shift_pressed(struct glplatform_win *win)
+{
+	return GetKeyState(VK_SHIFT) & PRESSED_MASK;
+}
+
+bool glplatform_is_control_pressed(struct glplatform_win *win)
+{
+	return GetKeyState(VK_CONTROL) & PRESSED_MASK;
+}
 
 DWORD g_context_tls;
 
