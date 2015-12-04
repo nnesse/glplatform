@@ -184,13 +184,8 @@ void gltext_submit_render(const struct gltext_color *color, const float *mvp)
 	glDrawArrays(GL_POINTS, 0, inst->num_chars);
 }
 
-//Renderere is now automatically allocated. It should be associated
-//with a context and free'd with that context. Commenting out the
-//free routine for now until there are hooks to call itgc
-#if 0
-void gltext_renderer_free(gltext_renderer_t renderer)
+void deinit_renderer(struct gltext_renderer *inst)
 {
-	struct renderer *inst = (struct renderer *)renderer;
 	if (inst->fragment_shader)
 		glDeleteShader(inst->fragment_shader);
 	if (inst->geometry_shader)
@@ -201,9 +196,7 @@ void gltext_renderer_free(gltext_renderer_t renderer)
 		glDeleteProgram(inst->glsl_program);
 	if (inst->ft_library)
 		FT_Done_FreeType(inst->ft_library);
-	free(inst);
 }
-#endif
 
 gltext_typeface_t gltext_get_typeface(const char *path)
 {
