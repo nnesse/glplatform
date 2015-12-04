@@ -98,7 +98,7 @@ int main()
 			2.0f/width,0,0,0,
 			0,-2.0f/height,0,0,
 			0,0,1,0,
-			-1 + ((width)-(x_pos))*(2.0f/width),1 + (height/2)*(-2.0f/height),0,1};
+			-1 + ((width - x_pos)/2)*(2.0f/width),1 + (height/2)*(-2.0f/height),0,1};
 		gltext_submit_render(&color, mvp);
 		glplatform_swap_buffers(win);
 
