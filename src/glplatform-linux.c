@@ -125,18 +125,22 @@ static int handle_x_event(struct glplatform_win *win, XEvent *event)
 		XKeyEvent *key_event = (XKeyEvent *)event;
 		KeySym k;
 		win->x_state_mask = key_event->state;
-		XLookupString(key_event, buf, 20, &k, NULL);
+		XKeyEvent key_event_copy = *((XKeyEvent *)event);
+		key_event_copy.state = 0;
+		XLookupString(&key_event_copy, buf, 20, &k, NULL);
 		if (win->callbacks.on_key_down)
-			win->callbacks.on_key_down(win, k);
+			win->callbacks.on_key_down(win, toupper(k));
 	} break;
 	case KeyRelease: {
 		char buf[20];
 		XKeyEvent *key_event = (XKeyEvent *)event;
 		KeySym k;
 		win->x_state_mask = key_event->state;
-		XLookupString(key_event, buf, 20, &k, NULL);
+		XKeyEvent key_event_copy = *((XKeyEvent *)event);
+		key_event_copy.state = 0;
+		XLookupString(&key_event_copy, buf, 20, &k, NULL);
 		if (win->callbacks.on_key_up)
-			win->callbacks.on_key_up(win, k);
+			win->callbacks.on_key_up(win, toupper(k));
 	} break;
 	case ButtonPress: {
 		XButtonEvent *button_event = (XButtonEvent *)event;
