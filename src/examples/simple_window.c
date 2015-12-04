@@ -6,24 +6,20 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-
 bool fullscreen = false;
 
 void on_key_down(struct glplatform_win *win, int k)
 {
-	//TODO: No fullscreen support for windows yet
-#ifndef _WIN32
-	if (k == 'f') {
-		fullscreen = !fullscreen;
-		glplatform_fullscreen_win(win, fullscreen);
+	if (k == 'F') {
+		glplatform_fullscreen_win(win, !win->fullscreen);
 	}
-#endif
 }
 
 void on_destroy(struct glplatform_win *win)
 {
 	glplatform_destroy_window(win);
 }
+
 
 #if defined(_WIN32)
 int CALLBACK WinMain(
