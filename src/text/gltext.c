@@ -75,24 +75,6 @@ struct gltext_renderer
 
 static bool init_renderer(struct gltext_renderer *inst);
 
-#ifndef _WIN32
-static struct gltext_renderer *g_text_renderer = NULL;
-
-static struct gltext_renderer *get_renderer()
-{
-	if (!g_text_renderer) {
-		struct gltext_renderer *inst = calloc(1, sizeof(struct gltext_renderer));
-		if (!inst)
-			return NULL;
-		if (!init_renderer(inst)) {
-			free(inst);
-			return NULL;
-		}
-		g_text_renderer = inst;
-	}
-	return g_text_renderer;
-}
-#else
 #include "glplatform_priv.h"
 static struct gltext_renderer *get_renderer()
 {
@@ -111,7 +93,6 @@ static struct gltext_renderer *get_renderer()
 	}
 	return context->text_renderer;
 }
-#endif
 
 float gltext_get_advance(const struct gltext_glyph *prev, const struct gltext_glyph *next)
 {

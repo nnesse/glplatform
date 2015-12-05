@@ -7,12 +7,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-
-#define GLPLATFORM_ENABLE_GLX_ARB_create_context
-#define GLPLATFORM_ENABLE_GLX_ARB_create_context_profile
+#include <pthread.h>
+#include <ctype.h>
+#include <unistd.h>
 #include "glplatform-glx.h"
+#include "glplatform_priv.h"
 
-int glplatform_epoll_fd;
+int glplatform_epoll_fd = -1;
 
 static int g_x11_fd;
 static int g_event_count;
@@ -31,6 +32,8 @@ struct fd_binding {
 };
 
 static struct fd_binding *g_fd_binding;
+
+static pthread_key_t g_context_tls;
 
 static struct glplatform_win *find_glplatform_win(Window w)
 {
@@ -205,31 +208,58 @@ static int handle_x_event(struct glplatform_win *win, XEvent *event)
 
 bool glplatform_init()
 {
+	int rc;
 	g_event_count = 0;
+	if (pthread_key_create(&g_context_tls, NULL))
+		return false;
+
 	glplatform_epoll_fd = epoll_create1(0);
+	if (glplatform_epoll_fd == -1)
+		goto error1;
+
 	g_display = XOpenDisplay(NULL);
+	if (g_display == NULL)
+		goto error2;
+
 	g_x11_fd = XConnectionNumber(g_display);
 	glplatform_glx_init(1, 4);
 
 	struct rlimit rl;
-	int rc = getrlimit(RLIMIT_NOFILE, &rl);
+	rc = getrlimit(RLIMIT_NOFILE, &rl);
 	if (rc)
-		return false;
+		goto error3;
 
 	g_max_fd = rl.rlim_max;
 	g_fd_binding = (struct fd_binding *)calloc(rl.rlim_max, sizeof(struct fd_binding));
 	struct epoll_event ev;
 	ev.events = EPOLLIN;
 	ev.data.fd = g_x11_fd;
-	epoll_ctl(glplatform_epoll_fd, EPOLL_CTL_ADD, g_x11_fd, &ev); //TODO: check for errors
+	rc = epoll_ctl(glplatform_epoll_fd, EPOLL_CTL_ADD, g_x11_fd, &ev);
+	if (rc == -1)
+		goto error3;
 	g_screen = DefaultScreen(g_display);
 	g_delete_atom = XInternAtom(g_display, "WM_DELETE_WINDOW", True);
 	return true;
+error3:
+	XCloseDisplay(g_display);
+	g_display = NULL;
+error2:
+	close(glplatform_epoll_fd);
+	glplatform_epoll_fd = -1;
+error1:
+	pthread_key_delete(g_context_tls);
+	g_context_tls = 0;
+	return false;
 }
 
 void glplatform_shutdown()
 {
 	XCloseDisplay(g_display);
+	close(glplatform_epoll_fd);
+	pthread_key_delete(g_context_tls);
+	g_display = NULL;
+	g_context_tls = 0;
+	glplatform_epoll_fd = -1;
 }
 
 struct glplatform_win *glplatform_create_window(const char *title,
@@ -388,9 +418,19 @@ void glplatform_set_win_type(struct glplatform_win *win, enum glplatform_win_typ
 		1);
 }
 
-void glplatform_make_current(struct glplatform_win *win, glplatform_gl_context_t context)
+void glplatform_make_current(struct glplatform_win *win, glplatform_gl_context_t ctx)
 {
-	glXMakeContextCurrent(g_display, win->glx_window, win->glx_window, (void *)context);
+	struct glplatform_context *context = (struct glplatform_context*)ctx;
+	pthread_setspecific(g_context_tls, context);
+	if (context)
+		glXMakeContextCurrent(g_display, win->glx_window, win->glx_window, context->ctx);
+	else
+		glXMakeContextCurrent(g_display, win->glx_window, win->glx_window, NULL);
+}
+
+struct glplatform_context *glplatform_get_context_priv()
+{
+	return (struct glplatform_context *)pthread_getspecific(g_context_tls);
 }
 
 glplatform_gl_context_t glplatform_create_context(struct glplatform_win *win, int maj_ver, int min_ver)
@@ -401,7 +441,11 @@ glplatform_gl_context_t glplatform_create_context(struct glplatform_win *win, in
 		GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
 		0
 	};
-	return (glplatform_gl_context_t)glXCreateContextAttribsARB(g_display, win->fb_config, 0, 1, attribList);
+	GLXContext ctx = glXCreateContextAttribsARB(g_display, win->fb_config, 0, 1, attribList);
+	struct glplatform_context *context = calloc(1, sizeof(struct glplatform_context));
+	if (context)
+		context->ctx = ctx;
+	return (glplatform_gl_context_t)context;
 }
 
 void glplatform_fullscreen_win(struct glplatform_win *win, bool fullscreen)

@@ -19,11 +19,15 @@ libglplatform_la_SOURCES = src/glbindings/glplatform-glcore.c
 if WINDOWS
 libglplatform_la_SOURCES += src/glplatform-win32.c \
 			   src/glbindings/glplatform-wgl.c
+libglplatform_la_CFLAGS += -DGLPLATFORM_ENABLE_WGL_ARB_create_context \
+			-DGLPLATFORM_ENABLE_WGL_ARB_create_context_profile
 endif
 
 if LINUX_GNU
 libglplatform_la_SOURCES += src/glplatform-linux.c \
 			   src/glbindings/glplatform-glx.c
+libglplatform_la_CFLAGS += -DGLPLATFORM_ENABLE_GLX_ARB_create_context \
+			-DGLPLATFORM_ENABLE_GLX_ARB_create_context_profile
 endif
 
 if WITH_MATH3D

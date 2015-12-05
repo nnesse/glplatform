@@ -1,7 +1,5 @@
 #include "glplatform.h"
 
-#define GLPLATFORM_ENABLE_WGL_ARB_create_context
-#define GLPLATFORM_ENABLE_WGL_ARB_create_context_profile
 #include "glplatform-wgl.h"
 
 #include <wingdi.h>
@@ -23,6 +21,7 @@ static LRESULT CALLBACK PlatformWndProc(HWND hWnd, UINT Msg, WPARAM wParam, LPAR
 
 static struct glplatform_win *g_win_list = NULL;
 static int g_glplatform_win_count = 0;
+static DWORD g_context_tls;
 
 static struct glplatform_win *find_glplatform_win(HWND hwnd)
 {
@@ -86,8 +85,6 @@ bool glplatform_is_control_pressed(struct glplatform_win *win)
 {
 	return GetKeyState(VK_CONTROL) & PRESSED_MASK;
 }
-
-DWORD g_context_tls;
 
 struct glplatform_context *glplatform_get_context_priv()
 {
@@ -358,7 +355,8 @@ glplatform_gl_context_t glplatform_create_context(struct glplatform_win *win, in
 	if (!rc)
 		return 0;
 	struct glplatform_context *context = calloc(1, sizeof(struct glplatform_context));
-	context->rc = rc;
+	if (context)
+		context->rc = rc;
 	return (glplatform_gl_context_t)context;
 }
 

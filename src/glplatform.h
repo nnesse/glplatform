@@ -210,7 +210,6 @@ struct glplatform_win {
 	HDC hdc;
 	HWND hwnd;
 	WINDOWPLACEMENT prev_placement;
-	bool fullscreen;
 #else
 	uint32_t window; //Window xid
 	void *fb_config; //GLXFBConfig
@@ -218,6 +217,7 @@ struct glplatform_win {
 	int x_state_mask;
 	uint32_t colormap; //Colormap
 #endif
+	bool fullscreen;
 	struct glplatform_fbformat fbformat;
 	struct glplatform_win_callbacks callbacks;
 	int width;
