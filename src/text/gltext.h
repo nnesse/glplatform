@@ -4,18 +4,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef void *gltext_typeface_t;
-typedef void *gltext_font_t;
-
 struct gltext_font;
+
+typedef void *gltext_typeface_t;
+typedef struct gltext_font *gltext_font_t;
 
 //
 // glyph
 //
 struct gltext_glyph {
-	/* ASCII character of glyph */
-	char c;
-
 	/* Position of left edge of glyph */
 	int left;
 
@@ -48,7 +45,6 @@ struct gltext_glyph {
 	uint8_t *bitmap_bits;
 
 	/* Internal use only*/
-	int typeface_index;
 	bool valid;
 };
 
