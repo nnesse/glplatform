@@ -82,10 +82,10 @@ gltext_typeface_t gltext_get_typeface(const char *path);
  *
  * gltext_font_create()
  *
- * Create a font for a specific typeface and charset.
+ * Create a font for a specific typeface and charset (UTF-8).
  *
  */
-gltext_font_t gltext_font_create(const char *charset, gltext_typeface_t typeface, int font_size);
+gltext_font_t gltext_font_create(const char *charset_utf8, gltext_typeface_t typeface, int font_size);
 
 
 /*
@@ -122,12 +122,12 @@ bool gltext_font_free(gltext_font_t font);
 /*
  * gltext_get_glyph()
  *
- * Returns a pointer to gltext_glyph structure for a specific character. The returned structure
+ * Returns a pointer to gltext_glyph structure for a specific UTF-32 character. The returned structure
  * does not need to be deallocated and will be valid until the font is destroyed. If the character is not in
  * the renderer's charset the return value will be NULL.
  *
  */
-const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, char c);
+const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, uint32_t c);
 
 /*
  * gltext_prepare_render()

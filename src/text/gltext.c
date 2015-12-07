@@ -10,6 +10,9 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include <iconv.h>
+#include <string.h>
+
 enum vertex_attrib_locations {
 	POS_LOC = 0,
 	GLYPH_INDEX_LOC = 1
@@ -28,12 +31,11 @@ struct gltext_font {
 	GLuint atlas_texture;
 	GLuint glyph_metric_texture;
 	GLuint glyph_metric_texture_buffer;
-	const char *charset;
 	int16_t *kerning_table;
 	int max_char;
 };
 
-const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, char c)
+const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, uint32_t c)
 {
 	struct gltext_font *font = (struct gltext_font *)(font_);
 	struct gltext_glyph *g;
@@ -71,6 +73,7 @@ struct gltext_renderer
 	int glyph_metric_sampler_loc;
 	int mvp_loc;
 	int num_chars;
+	iconv_t utf8_to_utf32;
 };
 
 static bool init_renderer(struct gltext_renderer *inst);
@@ -159,16 +162,12 @@ void gltext_submit_render(const struct gltext_color *color, const float *mvp)
 
 void deinit_renderer(struct gltext_renderer *inst)
 {
-	if (inst->fragment_shader)
-		glDeleteShader(inst->fragment_shader);
-	if (inst->geometry_shader)
-		glDeleteShader(inst->geometry_shader);
-	if (inst->vertex_shader)
-		glDeleteShader(inst->vertex_shader);
-	if (inst->glsl_program)
-		glDeleteProgram(inst->glsl_program);
-	if (inst->ft_library)
-		FT_Done_FreeType(inst->ft_library);
+	glDeleteShader(inst->fragment_shader);
+	glDeleteShader(inst->geometry_shader);
+	glDeleteShader(inst->vertex_shader);
+	glDeleteProgram(inst->glsl_program);
+	FT_Done_FreeType(inst->ft_library);
+	iconv_close(inst->utf8_to_utf32);
 }
 
 gltext_typeface_t gltext_get_typeface(const char *path)
@@ -187,9 +186,12 @@ gltext_typeface_t gltext_get_typeface(const char *path)
 
 static bool init_renderer(struct gltext_renderer *inst)
 {
+	inst->utf8_to_utf32 = iconv_open("UTF-32", "UTF-8");
+	if (inst->utf8_to_utf32 == (iconv_t)-1)
+		return false;
 	FT_Init_FreeType(&inst->ft_library);
 	if (!inst->ft_library)
-		return false;
+		goto error0;
 	const char *vertex_shader_text =
 		"#version 330\n"
 		"layout (location = 0) in vec2 pos_v;\n"
@@ -260,13 +262,10 @@ static bool init_renderer(struct gltext_renderer *inst)
 	glCompileShader(inst->geometry_shader);
 	glGetShaderiv(inst->geometry_shader, GL_COMPILE_STATUS, &success);
 	if (!success) {
-		FT_Done_FreeType(inst->ft_library);
 		char info_log[1000];
 		glGetShaderInfoLog(inst->geometry_shader, sizeof(info_log), NULL, info_log);
 		printf("renderer: Geometry shader compile failed\n%s", info_log);
-		glDeleteShader(inst->geometry_shader);
-		inst->geometry_shader = 0;
-		return false;
+		goto error2;
 	}
 
 	inst->fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -274,15 +273,10 @@ static bool init_renderer(struct gltext_renderer *inst)
 	glCompileShader(inst->fragment_shader);
 	glGetShaderiv(inst->fragment_shader, GL_COMPILE_STATUS, &success);
 	if (!success) {
-		FT_Done_FreeType(inst->ft_library);
 		char info_log[1000];
 		glGetShaderInfoLog(inst->fragment_shader, sizeof(info_log), NULL, info_log);
 		printf("renderer: Fragment shader compile failed\n%s", info_log);
-		glDeleteShader(inst->fragment_shader);
-		inst->fragment_shader = 0;
-		glDeleteShader(inst->geometry_shader);
-		inst->geometry_shader = 0;
-		return false;
+		goto error3;
 	}
 
 	inst->vertex_shader = glCreateShader(GL_VERTEX_SHADER);
@@ -290,17 +284,10 @@ static bool init_renderer(struct gltext_renderer *inst)
 	glCompileShader(inst->vertex_shader);
 	glGetShaderiv(inst->vertex_shader, GL_COMPILE_STATUS, &success);
 	if (!success) {
-		FT_Done_FreeType(inst->ft_library);
 		char info_log[1000];
 		glGetShaderInfoLog(inst->vertex_shader, sizeof(info_log), NULL, info_log);
 		printf("renderer: Vertex shader compile failed\n%s", info_log);
-		glDeleteShader(inst->fragment_shader);
-		inst->fragment_shader = 0;
-		glDeleteShader(inst->vertex_shader);
-		inst->vertex_shader = 0;
-		glDeleteShader(inst->geometry_shader);
-		inst->geometry_shader = 0;
-		return false;
+		goto error4;
 	}
 
 	inst->glsl_program = glCreateProgram();
@@ -310,17 +297,10 @@ static bool init_renderer(struct gltext_renderer *inst)
 	glLinkProgram(inst->glsl_program);
 	glGetProgramiv(inst->glsl_program, GL_LINK_STATUS, &success);
 	if (!success) {
-		FT_Done_FreeType(inst->ft_library);
 		char info_log[1000];
 		glGetProgramInfoLog(inst->glsl_program, sizeof(info_log), NULL, info_log);
 		printf("renderer: Program link failed\n%s", info_log);
-		glDeleteShader(inst->fragment_shader);
-		inst->fragment_shader = 0;
-		glDeleteShader(inst->vertex_shader);
-		inst->vertex_shader = 0;
-		glDeleteProgram(inst->glsl_program);
-		inst->glsl_program = 0;
-		return false;
+		goto error4;
 	}
 
 	glEnableVertexAttribArray(GLYPH_INDEX_LOC);
@@ -352,6 +332,24 @@ static bool init_renderer(struct gltext_renderer *inst)
 	glUniform1i(inst->sampler_loc, 0);
 	glUniform1i(inst->glyph_metric_sampler_loc, 1);
 	return true;
+error4:
+	glDeleteProgram(inst->glsl_program);
+	inst->glsl_program = 0;
+error3:
+	glDeleteShader(inst->vertex_shader);
+	inst->vertex_shader = 0;
+error2:
+	glDeleteShader(inst->fragment_shader);
+	inst->fragment_shader = 0;
+error1:
+	glDeleteShader(inst->geometry_shader);
+	inst->geometry_shader = 0;
+	glDeleteVertexArrays(1, &inst->gl_vertex_array);
+	inst->gl_vertex_array = 0;
+	FT_Done_FreeType(inst->ft_library);
+error0:
+	iconv_close(inst->utf8_to_utf32);
+	return false;
 }
 
 void gltext_font_create_texture(gltext_font_t f)
@@ -399,43 +397,59 @@ void gltext_font_destroy_texture(gltext_font_t font)
 	}
 }
 
-gltext_font_t gltext_font_create(const char *charset,
+gltext_font_t gltext_font_create(const char *charset_utf8,
 	gltext_typeface_t typeface_,
 	int size)
 {
+	FT_Face typeface = (FT_Face) typeface_;
 	struct gltext_renderer *inst = get_renderer();
 	if (!inst)
 		return 0;
 
-	struct gltext_font *f = (struct gltext_font *)calloc(1, sizeof(struct gltext_font));
-
-	f->size = size;
-	FT_Face typeface = (FT_Face) typeface_;
-
-	int total_glyphs = (int)strlen(charset);
-	f->total_glyphs = total_glyphs;
-
 	if (!typeface)
 		return 0;
 
+	if (FT_Select_Charmap(typeface, ft_encoding_unicode))
+		return 0;
+
+	FT_Set_Pixel_Sizes(typeface, size, size);
+
+	struct gltext_font *f = (struct gltext_font *)calloc(1, sizeof(struct gltext_font));
+
+	f->size = size;
+
+	int charset_utf8_len = (int)strlen(charset_utf8);
+
+	uint32_t *charset_utf32 = (uint32_t *)calloc(charset_utf8_len, sizeof(uint32_t));
+
+	char *inbuf = (char *)charset_utf8;
+	char *outbuf = (char *)charset_utf32;
+	size_t inbytesleft = charset_utf8_len;
+	size_t outbytesleft = (charset_utf8_len + 1) * sizeof(uint32_t);
+	size_t rc = iconv(inst->utf8_to_utf32, &inbuf, &inbytesleft, &outbuf, &outbytesleft);
+	if (rc == -1)
+		return 0;
+
+	f->total_glyphs = ((uint32_t *)outbuf) - charset_utf32;
+
 	int max_char = 0;
-	for (const char *c = charset; *c; c++)
-		if (*c > max_char)
-			max_char = *c;
+	for (int i = 0; i < f->total_glyphs; i++) {
+		uint32_t c = charset_utf32[i];
+		if (c > max_char)
+			max_char = c;
+	}
 
 	if ('\n' > max_char)
 		max_char = '\n';
 	f->max_char = max_char;
-	f->charset = charset;
 	f->glyph_array = calloc((f->max_char + 1), sizeof(struct gltext_glyph));
 	f->kerning_table = (int16_t *)calloc(f->total_glyphs * f->total_glyphs, sizeof(int16_t));
-	FT_Set_Pixel_Sizes(typeface, size, size);
 
 	int max_dim = 0;
 	int w = 0;
 
 	for (int i = 0; i < f->total_glyphs; i++) {
-		char c = f->charset[i];
+		uint32_t c = charset_utf32[i];
 		struct gltext_glyph *g = f->glyph_array + c;
 		g->w = w++;
 		int index = FT_Get_Char_Index(typeface, c);
@@ -460,13 +474,13 @@ gltext_font_t gltext_font_create(const char *charset,
 	}
 
 	for (int i = 0; i < f->total_glyphs; i++) {
-		char cprev = f->charset[i];
+		uint32_t cprev = charset_utf32[i];
 		struct gltext_glyph *prev = f->glyph_array + cprev;
 		int index_prev = FT_Get_Char_Index(typeface, cprev);
 		if (!index_prev)
 			continue;
 		for (int j = 0; j < f->total_glyphs; j++) {
-			char cnext = f->charset[j];
+			uint32_t cnext = charset_utf32[j];
 			struct gltext_glyph *next = f->glyph_array + cprev;
 			int index_next = FT_Get_Char_Index(typeface, cnext);
 			if (!index_next)
@@ -497,8 +511,8 @@ gltext_font_t gltext_font_create(const char *charset,
 	f->glyph_array['\n'].font = f;
 
 	int texels_per_layer = pot_size * pot_size;
-	uint8_t *atlas_buffer = (uint8_t *)calloc(total_glyphs, texels_per_layer);
-	int8_t *glyph_metric_array = (int8_t *)malloc(total_glyphs * sizeof(int8_t) * 4);
+	uint8_t *atlas_buffer = (uint8_t *)calloc(f->total_glyphs, texels_per_layer);
+	int8_t *glyph_metric_array = (int8_t *)malloc(f->total_glyphs * sizeof(int8_t) * 4);
 	int8_t *glyph_metric_ptr = glyph_metric_array;
 
 	double *srcf = (double *)malloc(texels_per_layer * sizeof(double));
@@ -510,7 +524,7 @@ gltext_font_t gltext_font_create(const char *charset,
 
 	uint8_t *layer_ptr = atlas_buffer;
 	for (int i = 0; i < f->total_glyphs; i++) {
-		char c = f->charset[i];
+		uint32_t c = charset_utf32[i];
 		struct gltext_glyph *g = f->glyph_array + c;
 		int gindex = FT_Get_Char_Index(typeface, c);
 		if (gindex) {
@@ -559,17 +573,16 @@ gltext_font_t gltext_font_create(const char *charset,
 	free(gx);
 	free(gy);
 	free(dist);
-
+	free(charset_utf32);
 	f->glyph_metric_array = glyph_metric_array;
 	f->atlas_buffer = atlas_buffer;
 
 	return f;
 }
 
-bool gltext_font_free(gltext_font_t font_)
+bool gltext_font_free(gltext_font_t font)
 {
-	struct gltext_font *font = (struct gltext_font *)(font_);
-	gltext_font_destroy_texture(font_);
+	gltext_font_destroy_texture(font);
 	free(font->atlas_buffer);
 	free(font->glyph_metric_array);
 	free(font->kerning_table);

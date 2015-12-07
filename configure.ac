@@ -20,6 +20,8 @@ fi
 AS_IF([ test $enable_text = yes ],
 	[PKG_CHECK_MODULES(FREETYPE2,freetype2 >= 2.53, [ enable_text="yes" ], [ enable_text="no" ])])
 
+AC_CHECK_HEADER("iconv.h",,AC_MSG_ERROR([Could not find iconv.h]))
+
 AS_IF([ test $host_os = 'linux-gnu' ],
 	[AC_CHECK_LIB([X11],[XOpenDisplay],,AC_MSG_ERROR([Could not find libX11]))
 	 AC_CHECK_LIB([GL],[glXGetProcAddress],,AC_MSG_ERROR([Could not find libGL]))])
