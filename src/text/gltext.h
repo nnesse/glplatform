@@ -163,6 +163,6 @@ const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, uint32_t c);
   * Small font sizes display best when aligned to exact window coordinates
   * with integral glyph positions.
   */
- void gltext_submit_render(const struct gltext_color *color, const float *mvp);
+ void gltext_submit_render(const struct gltext_color *color, int num_chars, const float *mvp);
 
 #endif

@@ -145,7 +145,7 @@ struct gltext_glyph_instance *gltext_prepare_render(gltext_font_t font, int num_
 	return ret;
 }
 
-void gltext_submit_render(const struct gltext_color *color, const float *mvp)
+void gltext_submit_render(const struct gltext_color *color, int num_chars, const float *mvp)
 {
 	struct gltext_renderer *inst = get_renderer();
 	if (!inst)
@@ -157,7 +157,7 @@ void gltext_submit_render(const struct gltext_color *color, const float *mvp)
 	glBindVertexArray(inst->gl_vertex_array);
 	glUniformMatrix4fv(inst->mvp_loc, 1, GL_FALSE, mvp);
 	glUniform4fv(inst->color_loc, 1, (GLfloat *)color);
-	glDrawArrays(GL_POINTS, 0, inst->num_chars);
+	glDrawArrays(GL_POINTS, 0, num_chars);
 }
 
 void deinit_renderer(struct gltext_renderer *inst)
@@ -167,7 +167,6 @@ void deinit_renderer(struct gltext_renderer *inst)
 	glDeleteShader(inst->vertex_shader);
 	glDeleteProgram(inst->glsl_program);
 	FT_Done_FreeType(inst->ft_library);
-	iconv_close(inst->utf8_to_utf32);
 }
 
 gltext_typeface_t gltext_get_typeface(const char *path)
