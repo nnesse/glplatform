@@ -11,9 +11,11 @@ AM_CPPFLAGS += -I$(top_srcdir)/src/math
 AM_CPPFLAGS += -I$(top_srcdir)/src/text
 #endif
 
+AM_CFLAGS = -std=c11
+
 lib_LTLIBRARIES = libglplatform.la
 libglplatform_la_LIBADD=$(FREETYPE2_LIBS)
-libglplatform_la_CFLAGS=-std=c99 $(FREETYPE2_CFLAGS)
+libglplatform_la_CFLAGS=$(FREETYPE2_CFLAGS) $(AM_CFLAGS)
 libglplatform_la_SOURCES = src/glbindings/glplatform-glcore.c
 
 if WINDOWS
@@ -49,6 +51,7 @@ endif
 
 simple_window_SOURCES = src/examples/simple_window.c
 simple_window_LDADD = libglplatform.la
+simple_window_CFLAGS = $(AM_CFLAGS)
 
 if WINDOWS
 simple_window_LDADD += $(WINDOWS_LDADD)
@@ -56,7 +59,7 @@ endif
 
 
 text_render_SOURCES = src/examples/text_render.c
-text_render_CFLAGS = -DTTF_PATH=\"${abs_srcdir}/src/examples/ttf/\"
+text_render_CFLAGS = -DTTF_PATH=\"${abs_srcdir}/src/examples/ttf/\" $(AM_CFLAGS)
 text_render_LDADD = libglplatform.la
 
 if WINDOWS

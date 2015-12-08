@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <uchar.h>
 
 struct gltext_font;
 
@@ -82,10 +83,10 @@ gltext_typeface_t gltext_get_typeface(const char *path);
  *
  * gltext_font_create()
  *
- * Create a font for a specific typeface and charset (UTF-8).
+ * Create a font for a specific typeface and charset (UTF-32).
  *
  */
-gltext_font_t gltext_font_create(const char *charset_utf8, gltext_typeface_t typeface, int font_size);
+gltext_font_t gltext_font_create(const char32_t *charset_utf32, gltext_typeface_t typeface, int font_size);
 
 
 /*
@@ -127,7 +128,7 @@ bool gltext_font_free(gltext_font_t font);
  * the renderer's charset the return value will be NULL.
  *
  */
-const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, uint32_t c);
+const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, char32_t c);
 
 /*
  * gltext_prepare_render()

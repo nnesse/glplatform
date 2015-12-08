@@ -9,6 +9,8 @@
 #include <windows.h>
 #endif
 
+#include <uchar.h>
+
 void on_destroy(struct glplatform_win *win)
 {
 	glplatform_destroy_window(win);
@@ -30,10 +32,10 @@ int main()
 		.on_destroy = on_destroy
 	};
 
-
-	const char *charset = " abcdefghijklmnopqrstuvwxyz"
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-		"'\"0123456789`~!@#$%^&*()_+;/?.>,<={}[]\\";
+	const char32_t *charset = U"abcdefghijklmnopqrstuvwxyz"
+		U"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		U"0123456789"
+		U" '\"`~!@#$%^&*()_+;/?.>,<={}[]\u2122";
 
 	if (!glplatform_init()) {
 		fprintf(stderr, "Failed to initialize GL window manager\n");
@@ -55,7 +57,7 @@ int main()
 
 	font = gltext_font_create(charset,
 		gltext_get_typeface(TTF_PATH "LiberationSans-Regular.ttf"),
-		20);
+		22);
 
 	if (!font) {
 		fprintf(stderr, "Failed to create font\n");
@@ -71,8 +73,10 @@ int main()
 		glClearColor(0,0,0,1);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		const char *str = "The quick brown fox jumps over the lazy dog()'\"0123456789`~!@#$%^&*()_+;/?.>,<={}[]\\";
-		struct gltext_glyph_instance *r = gltext_prepare_render(font, (int)strlen(str));
+		const char32_t *str = U"The quick brown fox jumps over the lazy dog()'\"0123456789`~!@#$%^&*()_+;/?.>,<={}[]\u2122\\";
+		int sz = 0;
+		while (str[sz]) sz++;
+		struct gltext_glyph_instance *r = gltext_prepare_render(font, sz);
 
 		const struct gltext_glyph *g_prev = NULL;
 		float x_pos = 0;
@@ -83,14 +87,16 @@ int main()
 			.b = 1,
 			.a = 1
 		};
-		while (*str) {
-			const struct gltext_glyph *g_cur = gltext_get_glyph(font, *str);
+		int num_chars = 0;
+		for (int i = 0; i < sz; i++) {
+			const struct gltext_glyph *g_cur = gltext_get_glyph(font, str[i]);
+			if (!g_cur)
+				continue;
 			x_pos += gltext_get_advance(g_prev, g_cur);
-			r->pos[0] = x_pos;
-			r->pos[1] = y_pos;
-			r->w = g_cur->w;
-			r++;
-			str++;
+			r[num_chars].pos[0] = x_pos;
+			r[num_chars].pos[1] = y_pos;
+			r[num_chars].w = g_cur->w;
+			num_chars++;
 			g_prev = g_cur;
 		}
 		x_pos += gltext_get_advance(g_prev, NULL);
@@ -99,7 +105,7 @@ int main()
 			0,-2.0f/height,0,0,
 			0,0,1,0,
 			-1 + ((width - x_pos)/2)*(2.0f/width),1 + (height/2)*(-2.0f/height),0,1};
-		gltext_submit_render(&color, mvp);
+		gltext_submit_render(&color, num_chars, mvp);
 		glplatform_swap_buffers(win);
 
 		if (glplatform_get_events(true) < 0)

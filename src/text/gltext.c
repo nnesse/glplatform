@@ -10,7 +10,6 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-#include <iconv.h>
 #include <string.h>
 
 enum vertex_attrib_locations {
@@ -35,9 +34,8 @@ struct gltext_font {
 	int max_char;
 };
 
-const struct gltext_glyph *gltext_get_glyph(gltext_font_t font_, uint32_t c)
+const struct gltext_glyph *gltext_get_glyph(gltext_font_t font, char32_t c)
 {
-	struct gltext_font *font = (struct gltext_font *)(font_);
 	struct gltext_glyph *g;
 	if (c > font->max_char) {
 		return NULL;
@@ -73,7 +71,6 @@ struct gltext_renderer
 	int glyph_metric_sampler_loc;
 	int mvp_loc;
 	int num_chars;
-	iconv_t utf8_to_utf32;
 };
 
 static bool init_renderer(struct gltext_renderer *inst);
@@ -185,9 +182,6 @@ gltext_typeface_t gltext_get_typeface(const char *path)
 
 static bool init_renderer(struct gltext_renderer *inst)
 {
-	inst->utf8_to_utf32 = iconv_open("UTF-32", "UTF-8");
-	if (inst->utf8_to_utf32 == (iconv_t)-1)
-		return false;
 	FT_Init_FreeType(&inst->ft_library);
 	if (!inst->ft_library)
 		goto error0;
@@ -347,7 +341,6 @@ error1:
 	inst->gl_vertex_array = 0;
 	FT_Done_FreeType(inst->ft_library);
 error0:
-	iconv_close(inst->utf8_to_utf32);
 	return false;
 }
 
@@ -396,7 +389,7 @@ void gltext_font_destroy_texture(gltext_font_t font)
 	}
 }
 
-gltext_font_t gltext_font_create(const char *charset_utf8,
+gltext_font_t gltext_font_create(const char32_t *charset,
 	gltext_typeface_t typeface_,
 	int size)
 {
@@ -417,23 +410,14 @@ gltext_font_t gltext_font_create(const char *charset_utf8,
 
 	f->size = size;
 
-	int charset_utf8_len = (int)strlen(charset_utf8);
-
-	uint32_t *charset_utf32 = (uint32_t *)calloc(charset_utf8_len, sizeof(uint32_t));
-
-	char *inbuf = (char *)charset_utf8;
-	char *outbuf = (char *)charset_utf32;
-	size_t inbytesleft = charset_utf8_len;
-	size_t outbytesleft = (charset_utf8_len + 1) * sizeof(uint32_t);
-	size_t rc = iconv(inst->utf8_to_utf32, &inbuf, &inbytesleft, &outbuf, &outbytesleft);
-	if (rc == -1)
-		return 0;
-
-	f->total_glyphs = ((uint32_t *)outbuf) - charset_utf32;
+	int charset_len = 0;
+        while (charset[charset_len])
+		charset_len++;
+	f->total_glyphs = charset_len;
 
 	int max_char = 0;
 	for (int i = 0; i < f->total_glyphs; i++) {
-		uint32_t c = charset_utf32[i];
+		uint32_t c = charset[i];
 		if (c > max_char)
 			max_char = c;
 	}
@@ -448,7 +432,7 @@ gltext_font_t gltext_font_create(const char *charset_utf8,
 	int w = 0;
 
 	for (int i = 0; i < f->total_glyphs; i++) {
-		uint32_t c = charset_utf32[i];
+		uint32_t c = charset[i];
 		struct gltext_glyph *g = f->glyph_array + c;
 		g->w = w++;
 		int index = FT_Get_Char_Index(typeface, c);
@@ -473,13 +457,13 @@ gltext_font_t gltext_font_create(const char *charset_utf8,
 	}
 
 	for (int i = 0; i < f->total_glyphs; i++) {
-		uint32_t cprev = charset_utf32[i];
+		uint32_t cprev = charset[i];
 		struct gltext_glyph *prev = f->glyph_array + cprev;
 		int index_prev = FT_Get_Char_Index(typeface, cprev);
 		if (!index_prev)
 			continue;
 		for (int j = 0; j < f->total_glyphs; j++) {
-			uint32_t cnext = charset_utf32[j];
+			uint32_t cnext = charset[j];
 			struct gltext_glyph *next = f->glyph_array + cprev;
 			int index_next = FT_Get_Char_Index(typeface, cnext);
 			if (!index_next)
@@ -523,7 +507,7 @@ gltext_font_t gltext_font_create(const char *charset_utf8,
 
 	uint8_t *layer_ptr = atlas_buffer;
 	for (int i = 0; i < f->total_glyphs; i++) {
-		uint32_t c = charset_utf32[i];
+		uint32_t c = charset[i];
 		struct gltext_glyph *g = f->glyph_array + c;
 		int gindex = FT_Get_Char_Index(typeface, c);
 		if (gindex) {
@@ -572,7 +556,6 @@ gltext_font_t gltext_font_create(const char *charset_utf8,
 	free(gx);
 	free(gy);
 	free(dist);
-	free(charset_utf32);
 	f->glyph_metric_array = glyph_metric_array;
 	f->atlas_buffer = atlas_buffer;
 
