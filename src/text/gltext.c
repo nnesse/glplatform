@@ -32,6 +32,7 @@ struct gltext_font {
 	GLuint glyph_metric_texture_buffer;
 	int16_t *kerning_table;
 	int max_char;
+	bool sdf;
 };
 
 const struct gltext_glyph *gltext_get_glyph(gltext_font_t font, char32_t c)
@@ -70,7 +71,8 @@ struct gltext_renderer
 	int color_loc;
 	int glyph_metric_sampler_loc;
 	int mvp_loc;
-	int num_chars;
+	int sdf_loc;
+	gltext_font_t cur_font;
 };
 
 static bool init_renderer(struct gltext_renderer *inst);
@@ -138,7 +140,7 @@ struct gltext_glyph_instance *gltext_prepare_render(gltext_font_t font, int num_
 		GL_ARRAY_BUFFER,
 		0, buffer_size,
 		GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
-	inst->num_chars = num_chars;
+	inst->cur_font = font;
 	return ret;
 }
 
@@ -154,6 +156,7 @@ void gltext_submit_render(const struct gltext_color *color, int num_chars, const
 	glBindVertexArray(inst->gl_vertex_array);
 	glUniformMatrix4fv(inst->mvp_loc, 1, GL_FALSE, mvp);
 	glUniform4fv(inst->color_loc, 1, (GLfloat *)color);
+	glUniform1i(inst->sdf_loc, inst->cur_font->sdf);
 	glDrawArrays(GL_POINTS, 0, num_chars);
 }
 
@@ -184,7 +187,7 @@ static bool init_renderer(struct gltext_renderer *inst)
 {
 	FT_Init_FreeType(&inst->ft_library);
 	if (!inst->ft_library)
-		goto error0;
+		return false;
 	const char *vertex_shader_text =
 		"#version 330\n"
 		"layout (location = 0) in vec2 pos_v;\n"
@@ -206,12 +209,13 @@ static bool init_renderer(struct gltext_renderer *inst)
 		"in vec2 pos[1];\n"
 		"in int glyph_index[1];\n"
 		"uniform mat4 mvp;\n"
+		"uniform bool sdf;\n"
 		"uniform isamplerBuffer glyph_metric_sampler;\n"
 		"out vec3 texcoord_f;\n"
 		"\n"
 		"void genVertex(vec2 ul, vec2 corner, vec2 size, vec3 texcoord)\n"
 		"{\n"
-			"gl_Position = mvp * vec4((ul - vec2(8, 8) + (corner * size)), 0, 1);\n"
+			"gl_Position = mvp * vec4(ul + (corner * size), 0, 1);\n"
 			"texcoord_f = texcoord + vec3(corner * size, 0);\n"
 			"EmitVertex();\n"
 		"}\n"
@@ -220,8 +224,12 @@ static bool init_renderer(struct gltext_renderer *inst)
 		"{\n"
 			"if (glyph_index[0] >= 0) {\n"
 				"vec4 glyph_metrics = texelFetch(glyph_metric_sampler, glyph_index[0]);\n"
-				"vec2 size = glyph_metrics.xy + vec2(16,16);\n"
+				"vec2 size = glyph_metrics.xy;\n"
 				"vec2 ul = pos[0] + vec2(glyph_metrics.z, -glyph_metrics.w);\n"
+				"if (sdf) {\n"
+				"	size += vec2(16, 16);\n"
+				"	ul -= vec2(8, 8);\n"
+				"}\n"
 				"vec3 texcoord = vec3(0, 0, glyph_index[0]);\n"
 				"genVertex(ul, vec2(0, 0), size, texcoord);\n"
 				"genVertex(ul, vec2(1, 0), size ,texcoord);\n"
@@ -237,12 +245,18 @@ static bool init_renderer(struct gltext_renderer *inst)
 		"uniform vec4 color;\n"
 		"in vec3 texcoord_f;\n"
 		"out vec4 frag_color;\n"
+		"uniform bool sdf;\n"
 		"void main()\n"
 		"{\n"
 			"ivec3 tex_size = textureSize(sampler, 0);\n"
-			"float D = texture(sampler, vec3(texcoord_f.xy/tex_size.xy, texcoord_f.z)).r - 0.50;\n"
-			"float aastep = length(vec2(dFdx(D), dFdy(D)));\n"
-			"float texel = smoothstep(-aastep, aastep, D);\n"
+			"float texel;\n"
+			"if (sdf) {\n"
+			"	float D = texture(sampler, vec3(texcoord_f.xy/tex_size.xy, texcoord_f.z)).r - 0.50;\n"
+			"	float aastep = length(vec2(dFdx(D), dFdy(D)));\n"
+			"	texel = smoothstep(-aastep, aastep, D);\n"
+			"} else {\n"
+			"	texel = texture(sampler, vec3(texcoord_f.xy/tex_size.xy, texcoord_f.z)).r;\n"
+			"}\n"
 			"frag_color = color * vec4(texel);\n"
 		"}\n";
 
@@ -317,6 +331,7 @@ static bool init_renderer(struct gltext_renderer *inst)
 
 	//Cache uniform locations
 	inst->mvp_loc = glGetUniformLocation(inst->glsl_program, "mvp");
+	inst->sdf_loc = glGetUniformLocation(inst->glsl_program, "sdf");
 	inst->sampler_loc = glGetUniformLocation(inst->glsl_program, "sampler");
 	inst->color_loc = glGetUniformLocation(inst->glsl_program, "color");
 	inst->glyph_metric_sampler_loc = glGetUniformLocation(inst->glsl_program, "glyph_metric_sampler");
@@ -340,7 +355,6 @@ error1:
 	glDeleteVertexArrays(1, &inst->gl_vertex_array);
 	inst->gl_vertex_array = 0;
 	FT_Done_FreeType(inst->ft_library);
-error0:
 	return false;
 }
 
@@ -385,13 +399,13 @@ void gltext_font_destroy_texture(gltext_font_t font)
 		glDeleteTextures(1, &font->atlas_texture);
 		font->glyph_metric_texture_buffer = 0;
 		font->glyph_metric_texture = 0;
-		font->atlas_buffer = 0;
+		font->atlas_texture = 0;
 	}
 }
 
 gltext_font_t gltext_font_create(const char32_t *charset,
 	gltext_typeface_t typeface_,
-	int size)
+	int size, bool sdf)
 {
 	FT_Face typeface = (FT_Face) typeface_;
 	struct gltext_renderer *inst = get_renderer();
@@ -412,7 +426,7 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 		return NULL;
 
 	f->size = size;
-
+	f->sdf = sdf;
 	int charset_len = 0;
         while (charset[charset_len])
 		charset_len++;
@@ -489,7 +503,9 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 
 	int pot_size;
 
-	max_dim += 16;
+	if (f->sdf) {
+		max_dim += 16;
+	}
 
 	if (max_dim < 16) {
 		pot_size = 16;
@@ -504,16 +520,25 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 	int8_t *glyph_metric_array = (int8_t *)calloc(f->total_glyphs, sizeof(int8_t) * 4);
 	int8_t *glyph_metric_ptr = glyph_metric_array;
 
-	double *srcf = (double *)malloc(texels_per_layer * sizeof(double));
-	short *distx = (short *)malloc(texels_per_layer * sizeof(short));
-	short *disty = (short *)malloc(texels_per_layer * sizeof(short)) ;
-	double *gx = (double *)malloc(texels_per_layer * sizeof(double));
-	double *gy = (double *)malloc(texels_per_layer * sizeof(double));
-	double *dist = (double *)malloc(texels_per_layer * sizeof(double));
-	if (!atlas_buffer || !glyph_metric_array || !srcf || !distx || !disty
-		|| !gx || !gy || !dist) {
+	double *srcf = NULL;
+	short *distx = NULL;
+	short *disty = NULL;
+	double *gx = NULL;
+	double *gy = NULL;
+	double *dist = NULL;
 
-		goto error2;
+	if (f->sdf) {
+		srcf = (double *)malloc(texels_per_layer * sizeof(double));
+		distx = (short *)malloc(texels_per_layer * sizeof(short));
+		disty = (short *)malloc(texels_per_layer * sizeof(short));
+		gx = (double *)malloc(texels_per_layer * sizeof(double));
+		gy = (double *)malloc(texels_per_layer * sizeof(double));
+		dist = (double *)malloc(texels_per_layer * sizeof(double));
+		if (!atlas_buffer || !glyph_metric_array || !srcf || !distx || !disty
+			|| !gx || !gy || !dist) {
+
+			goto error2;
+		}
 	}
 
 	uint8_t *layer_ptr = atlas_buffer;
@@ -522,7 +547,11 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 		struct gltext_glyph *g = f->glyph_array + c;
 		int gindex = FT_Get_Char_Index(typeface, c);
 		if (gindex) {
-			uint8_t *dest = layer_ptr + (pot_size * 8) + 8;
+			uint8_t *dest;
+			if (f->sdf)
+				dest = layer_ptr + (pot_size * 8) + 8;
+			else
+				dest = layer_ptr;
 			uint8_t *source = g->bitmap_bits;
 			for (int i = 0; i < g->bitmap_height; i++) {
 				memcpy(dest, source, g->bitmap_width);
@@ -530,28 +559,30 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 				source += g->bitmap_pitch;
 			}
 
-			uint8_t *temp = layer_ptr;
-			int index = 0;
-			for (int i = 0; i < g->bitmap_height + 16; i++) {
-				for (int j = 0; j < g->bitmap_width + 16; j++) {
-					srcf[index++] = (temp[j]*1.0)/256;
+			if (f->sdf) {
+				uint8_t *temp = layer_ptr;
+				int index = 0;
+				for (int i = 0; i < g->bitmap_height + 16; i++) {
+					for (int j = 0; j < g->bitmap_width + 16; j++) {
+						srcf[index++] = (temp[j]*1.0)/256;
+					}
+					temp += pot_size;
 				}
-				temp += pot_size;
-			}
-			computegradient(srcf, g->bitmap_width + 16, g->bitmap_height + 16, gx, gy);
-			edtaa3(srcf, gx, gy, g->bitmap_width + 16, g->bitmap_height + 16, distx, disty, dist);
+				computegradient(srcf, g->bitmap_width + 16, g->bitmap_height + 16, gx, gy);
+				edtaa3(srcf, gx, gy, g->bitmap_width + 16, g->bitmap_height + 16, distx, disty, dist);
 
-			temp = layer_ptr;
-			index = 0;
-			for (int i = 0; i < g->bitmap_height + 16; i++) {
-				for (int j = 0; j < g->bitmap_width + 16; j++) {
-					float s = (float)dist[index++];
-					int val = (int)(128 - s*16.0);
-					if (val < 0) val = 0;
-					if (val > 255) val = 255;
-					temp[j] = val;
+				temp = layer_ptr;
+				index = 0;
+				for (int i = 0; i < g->bitmap_height + 16; i++) {
+					for (int j = 0; j < g->bitmap_width + 16; j++) {
+						float s = (float)dist[index++];
+						int val = (int)(128 - s*16.0);
+						if (val < 0) val = 0;
+						if (val > 255) val = 255;
+						temp[j] = val;
+					}
+					temp += pot_size;
 				}
-				temp += pot_size;
 			}
 		}
 		*(glyph_metric_ptr++) = (int8_t)g->bitmap_width;

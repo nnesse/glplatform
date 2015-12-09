@@ -83,10 +83,13 @@ gltext_typeface_t gltext_get_typeface(const char *path);
  *
  * gltext_font_create()
  *
- * Create a font for a specific typeface and charset (UTF-32).
+ * Create a font for a specific typeface and charset (UTF-32). If 'sdf' is set to
+ * true then a signed distance field will be created for each glyph. This results
+ * in text that looks better when scaled or rotated but may appear slightly more
+ * blurry.
  *
  */
-gltext_font_t gltext_font_create(const char32_t *charset_utf32, gltext_typeface_t typeface, int font_size);
+gltext_font_t gltext_font_create(const char32_t *charset_utf32, gltext_typeface_t typeface, int font_size, bool sdf);
 
 
 /*

@@ -10,6 +10,7 @@
 #endif
 
 #include <uchar.h>
+#include <math.h>
 
 void on_destroy(struct glplatform_win *win)
 {
@@ -28,9 +29,9 @@ int main()
 {
 	gltext_font_t font;
 
-	struct glplatform_win_callbacks cb = {
-		.on_destroy = on_destroy
-	};
+	struct glplatform_win_callbacks cb;
+	memset(&cb, 0, sizeof(cb));
+	cb.on_destroy = on_destroy;
 
 	const char32_t *charset = U"abcdefghijklmnopqrstuvwxyz"
 		U"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -57,7 +58,7 @@ int main()
 
 	font = gltext_font_create(charset,
 		gltext_get_typeface(TTF_PATH "LiberationSans-Regular.ttf"),
-		22);
+		20, false);
 
 	if (!font) {
 		fprintf(stderr, "Failed to create font\n");
@@ -93,18 +94,19 @@ int main()
 			if (!g_cur)
 				continue;
 			x_pos += gltext_get_advance(g_prev, g_cur);
-			r[num_chars].pos[0] = x_pos;
+			r[num_chars].pos[0] = floorf(x_pos);
 			r[num_chars].pos[1] = y_pos;
 			r[num_chars].w = g_cur->w;
 			num_chars++;
 			g_prev = g_cur;
 		}
 		x_pos += gltext_get_advance(g_prev, NULL);
+		int x_posi = x_pos;
 		float mvp[16] = {
 			2.0f/width,0,0,0,
 			0,-2.0f/height,0,0,
 			0,0,1,0,
-			-1 + ((width - x_pos)/2)*(2.0f/width),1 + (height/2)*(-2.0f/height),0,1};
+			-1 + ((width - (int)x_pos)/2)*(2.0f/width),1 + (height/2)*(-2.0f/height),0,1};
 		gltext_submit_render(&color, num_chars, mvp);
 		glplatform_swap_buffers(win);
 
