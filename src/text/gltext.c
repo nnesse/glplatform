@@ -396,17 +396,20 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 	FT_Face typeface = (FT_Face) typeface_;
 	struct gltext_renderer *inst = get_renderer();
 	if (!inst)
-		return 0;
+		return NULL;
 
 	if (!typeface)
-		return 0;
+		return NULL;
 
 	if (FT_Select_Charmap(typeface, ft_encoding_unicode))
-		return 0;
+		return NULL;
 
-	FT_Set_Pixel_Sizes(typeface, size, size);
+	if (FT_Set_Pixel_Sizes(typeface, size, size))
+		return NULL;
 
 	struct gltext_font *f = (struct gltext_font *)calloc(1, sizeof(struct gltext_font));
+	if (!f)
+		return NULL;
 
 	f->size = size;
 
@@ -427,6 +430,9 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 	f->max_char = max_char;
 	f->glyph_array = calloc((f->max_char + 1), sizeof(struct gltext_glyph));
 	f->kerning_table = (int16_t *)calloc(f->total_glyphs * f->total_glyphs, sizeof(int16_t));
+
+	if (!f->glyph_array || !f->kerning_table)
+		goto error1;
 
 	int max_dim = 0;
 	int w = 0;
@@ -495,7 +501,7 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 
 	int texels_per_layer = pot_size * pot_size;
 	uint8_t *atlas_buffer = (uint8_t *)calloc(f->total_glyphs, texels_per_layer);
-	int8_t *glyph_metric_array = (int8_t *)malloc(f->total_glyphs * sizeof(int8_t) * 4);
+	int8_t *glyph_metric_array = (int8_t *)calloc(f->total_glyphs, sizeof(int8_t) * 4);
 	int8_t *glyph_metric_ptr = glyph_metric_array;
 
 	double *srcf = (double *)malloc(texels_per_layer * sizeof(double));
@@ -504,6 +510,11 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 	double *gx = (double *)malloc(texels_per_layer * sizeof(double));
 	double *gy = (double *)malloc(texels_per_layer * sizeof(double));
 	double *dist = (double *)malloc(texels_per_layer * sizeof(double));
+	if (!atlas_buffer || !glyph_metric_array || !srcf || !distx || !disty
+		|| !gx || !gy || !dist) {
+
+		goto error2;
+	}
 
 	uint8_t *layer_ptr = atlas_buffer;
 	for (int i = 0; i < f->total_glyphs; i++) {
@@ -560,6 +571,20 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 	f->atlas_buffer = atlas_buffer;
 
 	return f;
+error2:
+	free(atlas_buffer);
+	free(glyph_metric_array);
+	free(srcf);
+	free(distx);
+	free(disty);
+	free(gx);
+	free(gy);
+	free(dist);
+error1:
+	free(f->glyph_array);
+	free(f->kerning_table);
+	free(f);
+	return NULL;
 }
 
 bool gltext_font_free(gltext_font_t font)
