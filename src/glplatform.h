@@ -218,6 +218,7 @@ struct glplatform_win {
 	uint32_t colormap; //Colormap
 #endif
 	bool fullscreen;
+	bool show_cursor;
 	struct glplatform_fbformat fbformat;
 	struct glplatform_win_callbacks callbacks;
 	int width;
@@ -416,6 +417,24 @@ void glplatform_swap_buffers(struct glplatform_win *win);
  *
  */
 void glplatform_show_window(struct glplatform_win *win);
+
+/*
+ * glplatform_hide_cursor()
+ *
+ * Causes the cursor to become hidden when in the client area of a window.
+ * Initially the cursor will be shown.
+ *
+ */
+void glplatform_hide_cursor(struct glplatform_win *win);
+
+/*
+ * glplatform_show_cursor()
+ *
+ * Causes the cursor to become displayed when in the client area of a window.
+ * Initially the cursor will be shown.
+ *
+ */
+void glplatform_show_cursor(struct glplatform_win *win);
 
 /*
  * glplatform_fullscreen_win()

@@ -6,13 +6,23 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-bool fullscreen = false;
 
 void on_key_down(struct glplatform_win *win, int k)
 {
+	static bool cursor = true;
 	if (k == 'F') {
 		glplatform_fullscreen_win(win, !win->fullscreen);
 	}
+
+#ifdef _WIN32
+	if (k == 'C') {
+		if (cursor)
+			glplatform_hide_cursor(win);
+		else
+			glplatform_show_cursor(win);
+		cursor = !cursor;
+	}
+#endif
 }
 
 void on_destroy(struct glplatform_win *win)

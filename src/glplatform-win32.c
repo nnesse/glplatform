@@ -22,6 +22,7 @@ static LRESULT CALLBACK PlatformWndProc(HWND hWnd, UINT Msg, WPARAM wParam, LPAR
 static struct glplatform_win *g_win_list = NULL;
 static int g_glplatform_win_count = 0;
 static DWORD g_context_tls;
+static int g_cursor_count = 1;
 
 static struct glplatform_win *find_glplatform_win(HWND hwnd)
 {
@@ -118,6 +119,45 @@ bool glplatform_init()
 	return true;
 }
 
+static bool in_client_area(struct glplatform_win *win)
+{
+	POINT pt;
+	GetCursorPos(&pt);
+	LRESULT ht = SendMessage(win->hwnd, WM_NCHITTEST, 0, MAKELONG(pt.x, pt.y));
+	return (ht == HTCLIENT);
+}
+
+static void show_cursor_now(struct glplatform_win *win, bool state)
+{
+	if (state) {
+		if (!g_cursor_count) {
+			ShowCursor(TRUE);
+			g_cursor_count++;
+		}
+	} else {
+		if (g_cursor_count) {
+			ShowCursor(FALSE);
+			g_cursor_count--;
+		}
+	}
+}
+
+void glplatform_hide_cursor(struct glplatform_win *win)
+{
+	win->show_cursor = false;
+	if (in_client_area(win)) {
+		show_cursor_now(win, win->show_cursor);
+	}
+}
+
+void glplatform_show_cursor(struct glplatform_win *win)
+{
+	win->show_cursor = true;
+	if (in_client_area(win)) {
+		show_cursor_now(win, win->show_cursor);
+	}
+}
+
 void glplatform_shutdown()
 {
 	TlsFree(g_context_tls);
@@ -154,13 +194,12 @@ static LRESULT CALLBACK windows_event(struct glplatform_win *win, HWND hWnd, UIN
 	switch (Msg) {
 	case WM_SETCURSOR: {
 		WORD ht = LOWORD(lParam);
-		ShowCursor(TRUE);
 		if (ht == HTCLIENT) {
-			SetCursor(NULL);
-			return TRUE;
+			show_cursor_now(win, win->show_cursor);
 		} else {
-			return DefWindowProc(hWnd, Msg, wParam, lParam);
+			show_cursor_now(win, true);
 		}
+		return DefWindowProc(hWnd, Msg, wParam, lParam);
 	} break;
 	case WM_PAINT: {
 		if (win->callbacks.on_expose)
@@ -236,7 +275,6 @@ static LRESULT CALLBACK windows_event(struct glplatform_win *win, HWND hWnd, UIN
 			win->callbacks.on_mouse_button_up(win, 2, x, y);
 	} break;
 	case WM_MOUSEMOVE: {
-		ShowCursor(FALSE);
 		int x = GET_X_LPARAM(lParam);
 		int y = GET_Y_LPARAM(lParam);
 		int lbutton_down = wParam & MK_LBUTTON;
@@ -291,6 +329,7 @@ struct glplatform_win *glplatform_create_window(const char *title,
 	win->fbformat = *fbformat;
 	win->callbacks = *callbacks;
 	win->fullscreen = false;
+	win->show_cursor = true;
 	RECT wr = { 0, 0, width, height };
 	AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
 
