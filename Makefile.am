@@ -17,6 +17,7 @@ lib_LTLIBRARIES = libglplatform.la
 libglplatform_la_LIBADD=$(FREETYPE2_LIBS)
 libglplatform_la_CFLAGS=$(FREETYPE2_CFLAGS) $(AM_CFLAGS)
 libglplatform_la_SOURCES = src/glbindings/glplatform-glcore.c
+libglplatform_la_LDFLAGS = -version-info 4:0:0
 
 if WINDOWS
 libglplatform_la_SOURCES += src/glplatform-win32.c \

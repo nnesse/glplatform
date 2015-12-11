@@ -1,5 +1,5 @@
 AC_PREREQ(2.59)
-AC_INIT(glplatform, 0.3)
+AC_INIT(glplatform, [0.4])
 
 AC_CONFIG_MACRO_DIRS([m4])
 
