@@ -453,6 +453,8 @@ void glplatform_fullscreen_win(struct glplatform_win *win, bool fullscreen)
 	XWindowAttributes attr;
 	bool mapped;
 
+	win->fullscreen = fullscreen;
+
 	Atom net_wm_state = XInternAtom(g_display, "_NET_WM_STATE", False);
 	Atom net_wm_state_fullscreen = XInternAtom(g_display, "_NET_WM_STATE_FULLSCREEN", False);
 
