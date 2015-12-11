@@ -35,6 +35,8 @@ static struct fd_binding *g_fd_binding;
 
 static pthread_key_t g_context_tls;
 
+static Cursor g_empty_cursor;
+
 static struct glplatform_win *find_glplatform_win(Window w)
 {
 	struct glplatform_win *win = g_win_list;
@@ -206,6 +208,16 @@ static int handle_x_event(struct glplatform_win *win, XEvent *event)
 	return 0;
 }
 
+void glplatform_show_cursor(struct glplatform_win *win)
+{
+	XDefineCursor(g_display, win->window, None);
+}
+
+void glplatform_hide_cursor(struct glplatform_win *win)
+{
+	XDefineCursor(g_display, win->window, g_empty_cursor);
+}
+
 bool glplatform_init()
 {
 	int rc;
@@ -237,6 +249,30 @@ bool glplatform_init()
 	rc = epoll_ctl(glplatform_epoll_fd, EPOLL_CTL_ADD, g_x11_fd, &ev);
 	if (rc == -1)
 		goto error3;
+
+	char empty = 0;
+	Pixmap pixmap;
+	XColor color;
+	color.red = 0;
+	color.green = 0;
+	color.blue = 0;
+        pixmap = XCreateBitmapFromData(g_display,
+		DefaultRootWindow(g_display),
+		&empty,
+		1,
+		1);
+        if (!pixmap)
+		goto error3;
+
+	g_empty_cursor = XCreatePixmapCursor(g_display,
+		pixmap, pixmap,
+		&color, &color,
+		0, 0);
+	XFreePixmap(g_display, pixmap);
+
+	if (g_empty_cursor == None)
+		goto error3;
+
 	g_screen = DefaultScreen(g_display);
 	g_delete_atom = XInternAtom(g_display, "WM_DELETE_WINDOW", True);
 	return true;

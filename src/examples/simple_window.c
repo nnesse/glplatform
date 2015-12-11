@@ -14,7 +14,6 @@ void on_key_down(struct glplatform_win *win, int k)
 		glplatform_fullscreen_win(win, !win->fullscreen);
 	}
 
-#ifdef _WIN32
 	if (k == 'C') {
 		if (cursor)
 			glplatform_hide_cursor(win);
@@ -22,7 +21,6 @@ void on_key_down(struct glplatform_win *win, int k)
 			glplatform_show_cursor(win);
 		cursor = !cursor;
 	}
-#endif
 }
 
 void on_destroy(struct glplatform_win *win)
