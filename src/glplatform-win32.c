@@ -468,6 +468,14 @@ void glplatform_show_window(struct glplatform_win *win)
 	ShowWindow(win->hwnd, SW_SHOWNORMAL);
 }
 
-//TODO
-//void glplatform_get_thread_state(struct glplatform_thread_state *state)
-//void glplatform_set_thread_state(const struct glplatform_thread_state *state)
+void glplatform_get_thread_state(struct glplatform_thread_state *state)
+{
+	state->read_dc = wglGetCurrentReadDCARB();
+	state->draw_dc = wglGetCurrentDC();
+	state->context = wglGetCurrentContext();
+}
+
+void glplatform_set_thread_state(const struct glplatform_thread_state *state)
+{
+	wglMakeContextCurrentARB(state->draw_dc, state->read_dc, state->context);
+}

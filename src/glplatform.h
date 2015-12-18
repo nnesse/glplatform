@@ -227,14 +227,18 @@ struct glplatform_win {
 	struct glplatform_win **pprev;
 };
 
-#ifndef _WIN32
 struct glplatform_thread_state {
+#ifdef _WIN32
+	HDC read_dc;
+	HDC draw_dc;
+	HGLRC context;
+#else
 	void *display;
 	void *context;
 	uint32_t read_draw;
 	uint32_t write_draw;
-};
 #endif
+};
 
 /*
  * glplatform_init()

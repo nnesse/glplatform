@@ -20,9 +20,10 @@ libglplatform_la_SOURCES = src/glbindings/glplatform-glcore.c
 
 if WINDOWS
 libglplatform_la_SOURCES += src/glplatform-win32.c \
-			   src/glbindings/glplatform-wgl.c
+				src/glbindings/glplatform-wgl.c
 libglplatform_la_CFLAGS += -DGLPLATFORM_ENABLE_WGL_ARB_create_context \
-			-DGLPLATFORM_ENABLE_WGL_ARB_create_context_profile
+			-DGLPLATFORM_ENABLE_WGL_ARB_create_context_profile \
+			-DGLPLATFORM_ENABLE_WGL_ARB_make_current_read
 endif
 
 if LINUX_GNU
