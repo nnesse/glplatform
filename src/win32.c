@@ -3,7 +3,7 @@
 #include <wingdi.h>
 #include <windowsx.h>
 
-#include "glplatform-wgl.h"
+#include "wgl.h"
 
 //
 // wglGetProcAddress() only works if a WGL context is current so
@@ -15,7 +15,7 @@
 #undef wglMakeCurrent
 #undef wglCreateContext
 
-#include "glplatform_priv.h"
+#include "priv.h"
 
 static LRESULT CALLBACK PlatformWndProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 

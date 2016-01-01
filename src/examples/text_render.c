@@ -3,7 +3,7 @@
 
 #include "glplatform.h"
 #include "gltext.h"
-#include "glplatform-glcore.h"
+#include "glcore.h"
 
 #ifdef _WIN32
 #include <windows.h>

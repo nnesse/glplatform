@@ -1,11 +1,12 @@
 #include "gltext.h"
+#include "priv.h"
 
 #include <math.h>
 
 #include "edtaa3func.c"
 
 #define GLPLATFORM_GL_VERSION 33
-#include "glplatform-glcore.h"
+#include "glcore.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -77,7 +78,6 @@ struct gltext_renderer
 
 static bool init_renderer(struct gltext_renderer *inst);
 
-#include "glplatform_priv.h"
 static struct gltext_renderer *get_renderer()
 {
 	struct glplatform_context *context = glplatform_get_context_priv();

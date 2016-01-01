@@ -17,11 +17,10 @@ lib_LTLIBRARIES = libglplatform.la
 libglplatform_la_LIBADD=$(FREETYPE2_LIBS)
 libglplatform_la_CFLAGS=$(FREETYPE2_CFLAGS) $(AM_CFLAGS)
 libglplatform_la_LDFLAGS= -no-undefined
-libglplatform_la_SOURCES = src/glbindings/glplatform-glcore.c
+libglplatform_la_SOURCES = src/glbindings/glcore.c
 
 if WINDOWS
-libglplatform_la_SOURCES += src/glplatform-win32.c \
-				src/glbindings/glplatform-wgl.c
+libglplatform_la_SOURCES += src/win32.c src/glbindings/wgl.c
 libglplatform_la_LIBADD += -lkernel32 -luser32 -lopengl32 -lgdi32
 libglplatform_la_CFLAGS += -DGLPLATFORM_ENABLE_WGL_ARB_create_context \
 			-DGLPLATFORM_ENABLE_WGL_ARB_create_context_profile \
@@ -29,8 +28,7 @@ libglplatform_la_CFLAGS += -DGLPLATFORM_ENABLE_WGL_ARB_create_context \
 endif
 
 if LINUX_GNU
-libglplatform_la_SOURCES += src/glplatform-linux.c \
-			   src/glbindings/glplatform-glx.c
+libglplatform_la_SOURCES += src/linux.c src/glbindings/glx.c
 libglplatform_la_CFLAGS += -DGLPLATFORM_ENABLE_GLX_ARB_create_context \
 			-DGLPLATFORM_ENABLE_GLX_ARB_create_context_profile
 endif
@@ -56,9 +54,16 @@ text_render_SOURCES = src/examples/text_render.c
 text_render_CFLAGS = -DTTF_PATH=\"${abs_srcdir}/src/examples/ttf/\" $(AM_CFLAGS)
 text_render_LDADD = libglplatform.la
 
-pkginclude_HEADERS = src/glbindings/glplatform-glcore.h \
-		     src/glbindings/glplatform-glx.h \
+pkginclude_HEADERS = src/glbindings/glcore.h \
 		     src/glplatform.h
+
+if LINUX_GNU
+pkginclude_HEADERS += src/glbindings/glx.h
+endif
+
+if WINDOWS
+pkginclude_HEADERS += src/glbindings/wgl.h
+endif
 
 if WITH_MATH3D
 pkginclude_HEADERS += src/math/math3d.h
