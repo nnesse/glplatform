@@ -14,6 +14,9 @@ typedef struct gltext_font *gltext_font_t;
 // glyph
 //
 struct gltext_glyph {
+	/* unicode character for this glyph */
+	char32_t character;
+
 	/* Position of left edge of glyph */
 	int left;
 
@@ -39,14 +42,9 @@ struct gltext_glyph {
 	/* handle to font */
 	gltext_font_t font;
 
-	/* Glyph bitmap */
+	/* Glyph bitmap size */
 	int bitmap_width;
 	int bitmap_height;
-	int bitmap_pitch;
-	uint8_t *bitmap_bits;
-
-	/* Internal use only*/
-	bool valid;
 };
 
 struct gltext_color {
@@ -91,6 +89,21 @@ gltext_typeface_t gltext_get_typeface(const char *path);
  */
 gltext_font_t gltext_font_create(const char32_t *charset_utf32, gltext_typeface_t typeface, int font_size, bool sdf);
 
+/*
+ * gltext_font_load()
+ *
+ * Load a font from a file.
+ *
+ */
+gltext_font_t gltext_font_load(const char *path);
+
+/*
+ * gltext_font_store()
+ *
+ * Store a font to a file.
+ * 
+ */
+bool gltext_font_store(gltext_font_t font, const char *path);
 
 /*
  *

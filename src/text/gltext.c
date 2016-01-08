@@ -12,6 +12,9 @@
 #include FT_FREETYPE_H
 
 #include <string.h>
+#include <stdio.h>
+
+#define FONT_FORMAT_VERSION 1
 
 enum vertex_attrib_locations {
 	POS_LOC = 0,
@@ -23,8 +26,9 @@ enum vertex_attrib_locations {
 //
 struct gltext_font {
 	int size;
-	struct gltext_glyph *glyph_array;
+	struct gltext_glyph **glyph_map;
 	int total_glyphs;
+	struct gltext_glyph *glyphs;
 	int8_t *glyph_metric_array;
 	uint8_t *atlas_buffer;
 	int pot_size;
@@ -42,11 +46,7 @@ const struct gltext_glyph *gltext_get_glyph(gltext_font_t font, char32_t c)
 	if (c > font->max_char) {
 		return NULL;
 	}
-        g = font->glyph_array + c;
-	if (!g->valid) {
-		return NULL;
-	}
-	return g;
+        return font->glyph_map[c];
 }
 
 //
@@ -403,12 +403,166 @@ void gltext_font_destroy_texture(gltext_font_t font)
 	}
 }
 
+#define HEADER_ENT 6
+#define GLYPH_ENT 7
+
+gltext_font_t gltext_font_load(const char *path)
+{
+	FILE *f = fopen(path, "rb");
+	if (!f)
+		return NULL;
+	uint32_t header[HEADER_ENT];
+	int rd_len = HEADER_ENT;
+	int count = fread(header, sizeof(uint32_t), rd_len, f);
+	if (count != rd_len)
+		goto error1;
+	gltext_font_t font = calloc(sizeof(struct gltext_font), 1);
+	if (!font)
+		goto error1;
+	if (header[0] != FONT_FORMAT_VERSION)
+		goto error2;
+	font->size = header[5];
+	font->total_glyphs = header[2];
+	font->pot_size = header[3];
+	font->max_char = header[4];
+	font->sdf = header[1];
+
+	font->glyphs = calloc(sizeof(struct gltext_glyph), font->total_glyphs);
+	if (!font->glyphs)
+		goto error2;
+	font->glyph_map = calloc(sizeof(struct gltext_glyph *), font->max_char + 1);
+	if (!font->glyph_map)
+		goto error2;
+	font->glyph_metric_array = (int8_t *)calloc(sizeof(int8_t) * 4, font->total_glyphs);
+	if (!font->glyph_metric_array)
+		goto error2;
+	int8_t *glyph_metric_ptr = font->glyph_metric_array;
+	for (int i = 0; i < font->total_glyphs; i++) {
+		uint32_t glyph_data[GLYPH_ENT];
+		rd_len = GLYPH_ENT;
+		count = fread(glyph_data, sizeof(uint32_t), rd_len, f);
+		if (count != rd_len)
+			goto error2;
+		struct gltext_glyph *g = font->glyphs + i;
+		g->character = glyph_data[0];
+		g->left = glyph_data[1];
+		g->top = glyph_data[2];
+		g->advance_x = glyph_data[3];
+		g->advance_y = glyph_data[4];
+		g->bitmap_width = glyph_data[5];
+		g->bitmap_height = glyph_data[6];
+		g->w = i;
+		g->font = font;
+		*(glyph_metric_ptr++) = (int8_t)g->bitmap_width;
+		*(glyph_metric_ptr++) = (int8_t)g->bitmap_height;
+		*(glyph_metric_ptr++) = (int8_t)g->left;
+		*(glyph_metric_ptr++) = (int8_t)g->top;
+		font->glyph_map[g->character] = g;
+	}
+
+	rd_len = font->total_glyphs * font->total_glyphs;
+	font->kerning_table = calloc(sizeof(int16_t), rd_len);
+	if (!font->kerning_table)
+		goto error2;
+	count = fread(font->kerning_table, sizeof(int16_t), rd_len, f);
+	if (count != rd_len)
+		goto error2;
+	rd_len = font->pot_size * font->pot_size * font->total_glyphs;
+	font->atlas_buffer = calloc(sizeof(uint8_t), rd_len);
+	if (!font->atlas_buffer)
+		goto error2;
+	count = fread(font->atlas_buffer, sizeof(uint8_t), rd_len, f);
+	if (count != rd_len)
+		goto error2;
+	fclose(f);
+	return font;
+error2:
+	free(font->atlas_buffer);
+	free(font->kerning_table);
+	free(font->glyph_metric_array);
+	free(font->glyph_map);
+	free(font->glyphs);
+	free(font);
+error1:
+	fclose(f);
+	return NULL;
+}
+
+bool gltext_font_store(gltext_font_t font, const char *path)
+{
+	if (!font || !font->kerning_table || !font->atlas_buffer)
+		return false;
+
+	FILE *f = fopen(path, "wb");
+	if (!f)
+		return false;
+	uint32_t header[HEADER_ENT];
+	header[0] = FONT_FORMAT_VERSION;
+	header[1] = font->sdf;
+	header[2] = font->total_glyphs;
+	header[3] = font->pot_size;
+	header[4] = font->max_char;
+	header[5] = font->size;
+	int wr_len = HEADER_ENT;
+	int count = fwrite(header, sizeof(uint32_t), wr_len, f);
+	if (count != wr_len) {
+		fclose(f);
+		return false;
+	}
+
+	for (int i = 0; i < font->total_glyphs; i++) {
+		struct gltext_glyph *g = font->glyphs + i;
+		uint32_t glyph[GLYPH_ENT];
+		glyph[0] = g->character;
+		glyph[1] = g->left;
+		glyph[2] = g->top;
+		glyph[3] = g->advance_x;
+		glyph[4] = g->advance_y;
+		glyph[5] = g->bitmap_width;
+		glyph[6] = g->bitmap_height;
+		int wr_len = GLYPH_ENT;
+		int count = fwrite(glyph, sizeof(uint32_t), wr_len, f);
+		if (count != wr_len) {
+			fclose(f);
+			return false;
+		}
+	}
+
+	wr_len = font->total_glyphs * font->total_glyphs;
+	count = fwrite(font->kerning_table, sizeof(int16_t), wr_len, f);
+	if (count != wr_len) {
+		fclose(f);
+		return false;
+	}
+
+	wr_len = font->pot_size * font->pot_size * font->total_glyphs;
+	count = fwrite(font->atlas_buffer, sizeof(uint8_t), wr_len, f);
+	if (count != wr_len) {
+		fclose(f);
+		return false;
+	}
+
+	fclose(f);
+	return true;
+}
+
 gltext_font_t gltext_font_create(const char32_t *charset,
 	gltext_typeface_t typeface_,
 	int size, bool sdf)
 {
+	double *srcf = NULL;
+	short *distx = NULL;
+	short *disty = NULL;
+	double *gx = NULL;
+	double *gy = NULL;
+	double *dist = NULL;
+	int8_t *glyph_metric_array = NULL;
+	uint8_t *atlas_buffer = NULL;
+
 	FT_Face typeface = (FT_Face) typeface_;
 	struct gltext_renderer *inst = get_renderer();
+	uint8_t **bitmap_bits = NULL;
+	int *bitmap_pitch = NULL;
 	if (!inst)
 		return NULL;
 
@@ -421,7 +575,7 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 	if (FT_Set_Pixel_Sizes(typeface, size, size))
 		return NULL;
 
-	struct gltext_font *f = (struct gltext_font *)calloc(1, sizeof(struct gltext_font));
+	struct gltext_font *f = (struct gltext_font *)calloc(sizeof(struct gltext_font), 1);
 	if (!f)
 		return NULL;
 
@@ -442,49 +596,55 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 	if ('\n' > max_char)
 		max_char = '\n';
 	f->max_char = max_char;
-	f->glyph_array = calloc((f->max_char + 1), sizeof(struct gltext_glyph));
+	f->glyphs = calloc(f->total_glyphs, sizeof(struct gltext_glyph));
+	f->glyph_map = calloc((f->max_char + 1), sizeof(struct gltext_glyph *));
 	f->kerning_table = (int16_t *)calloc(f->total_glyphs * f->total_glyphs, sizeof(int16_t));
 
-	if (!f->glyph_array || !f->kerning_table)
-		goto error1;
+	bitmap_bits = (uint8_t **)calloc(sizeof(uint8_t *), f->total_glyphs);
+	bitmap_pitch = (int *)calloc(sizeof(int), f->total_glyphs);
+
+	if (!f->glyphs || !f->glyph_map || !f->kerning_table || !bitmap_bits || !bitmap_pitch)
+		goto error;
 
 	int max_dim = 0;
-	int w = 0;
 
 	for (int i = 0; i < f->total_glyphs; i++) {
 		uint32_t c = charset[i];
-		struct gltext_glyph *g = f->glyph_array + c;
-		g->w = w++;
+		struct gltext_glyph *g = f->glyphs + i;
+		g->w = i;
+		g->character = c;
 		int index = FT_Get_Char_Index(typeface, c);
 		if (!index)
 			continue;
+		f->glyph_map[c] = g;
 		FT_Load_Glyph(typeface, index, 0/* flags */);
 		FT_Render_Glyph(typeface->glyph, FT_RENDER_MODE_NORMAL);
-		g->bitmap_pitch = typeface->glyph->bitmap.pitch;
 		g->bitmap_width = typeface->glyph->bitmap.width;
 		g->bitmap_height = typeface->glyph->bitmap.rows;
-		size_t image_size = g->bitmap_pitch * g->bitmap_height;
-		g->bitmap_bits = (uint8_t *)malloc(image_size);
-		memcpy(g->bitmap_bits, typeface->glyph->bitmap.buffer, image_size);
+		bitmap_pitch[i] = typeface->glyph->bitmap.pitch;
+		size_t image_size = bitmap_pitch[i] * g->bitmap_height;
+		bitmap_bits[i] = (uint8_t *)malloc(image_size);
+		if (!bitmap_bits[i])
+			goto error;
+		memcpy(bitmap_bits[i], typeface->glyph->bitmap.buffer, image_size);
 		g->left = typeface->glyph->bitmap_left;
 		g->top = typeface->glyph->bitmap_top;
 		g->advance_x = typeface->glyph->advance.x;
 		g->advance_y = typeface->glyph->advance.y;
 		g->font = f;
-		g->valid = true;
 		max_dim = g->bitmap_width > max_dim ? g->bitmap_width : max_dim;
 		max_dim = g->bitmap_height > max_dim ? g->bitmap_height : max_dim;
 	}
 
 	for (int i = 0; i < f->total_glyphs; i++) {
 		uint32_t cprev = charset[i];
-		struct gltext_glyph *prev = f->glyph_array + cprev;
+		struct gltext_glyph *prev = f->glyphs + i;
 		int index_prev = FT_Get_Char_Index(typeface, cprev);
 		if (!index_prev)
 			continue;
 		for (int j = 0; j < f->total_glyphs; j++) {
 			uint32_t cnext = charset[j];
-			struct gltext_glyph *next = f->glyph_array + cprev;
+			struct gltext_glyph *next = f->glyphs + j;
 			int index_next = FT_Get_Char_Index(typeface, cnext);
 			if (!index_next)
 				continue;
@@ -513,19 +673,15 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 		pot_size = 1 << (32 - __builtin_clz(max_dim));
 	}
 	f->pot_size = pot_size;
-	f->glyph_array['\n'].font = f;
 
 	int texels_per_layer = pot_size * pot_size;
-	uint8_t *atlas_buffer = (uint8_t *)calloc(f->total_glyphs, texels_per_layer);
-	int8_t *glyph_metric_array = (int8_t *)calloc(f->total_glyphs, sizeof(int8_t) * 4);
-	int8_t *glyph_metric_ptr = glyph_metric_array;
+	atlas_buffer = (uint8_t *)calloc(sizeof(uint8_t *), f->total_glyphs * texels_per_layer);
+	glyph_metric_array = (int8_t *)calloc(f->total_glyphs, sizeof(int8_t) * 4);
 
-	double *srcf = NULL;
-	short *distx = NULL;
-	short *disty = NULL;
-	double *gx = NULL;
-	double *gy = NULL;
-	double *dist = NULL;
+	if (!atlas_buffer || !glyph_metric_array)
+		goto error;
+
+	int8_t *glyph_metric_ptr = glyph_metric_array;
 
 	if (f->sdf) {
 		srcf = (double *)malloc(texels_per_layer * sizeof(double));
@@ -534,17 +690,14 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 		gx = (double *)malloc(texels_per_layer * sizeof(double));
 		gy = (double *)malloc(texels_per_layer * sizeof(double));
 		dist = (double *)malloc(texels_per_layer * sizeof(double));
-		if (!atlas_buffer || !glyph_metric_array || !srcf || !distx || !disty
-			|| !gx || !gy || !dist) {
-
-			goto error2;
-		}
+		if (!srcf || !distx || !disty || !gx || !gy || !dist)
+			goto error;
 	}
 
 	uint8_t *layer_ptr = atlas_buffer;
 	for (int i = 0; i < f->total_glyphs; i++) {
 		uint32_t c = charset[i];
-		struct gltext_glyph *g = f->glyph_array + c;
+		struct gltext_glyph *g = f->glyphs + i;
 		int gindex = FT_Get_Char_Index(typeface, c);
 		if (gindex) {
 			uint8_t *dest;
@@ -552,11 +705,11 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 				dest = layer_ptr + (pot_size * 8) + 8;
 			else
 				dest = layer_ptr;
-			uint8_t *source = g->bitmap_bits;
-			for (int i = 0; i < g->bitmap_height; i++) {
+			uint8_t *source = bitmap_bits[i];
+			for (int j = 0; j < g->bitmap_height; j++) {
 				memcpy(dest, source, g->bitmap_width);
 				dest += pot_size;
-				source += g->bitmap_pitch;
+				source += bitmap_pitch[i];
 			}
 
 			if (f->sdf) {
@@ -598,11 +751,23 @@ gltext_font_t gltext_font_create(const char32_t *charset,
 	free(gx);
 	free(gy);
 	free(dist);
+	for (int i = 0; i < f->total_glyphs; i++) {
+		free(bitmap_bits[i]);
+	}
+	free(bitmap_bits);
+	free(bitmap_pitch);
 	f->glyph_metric_array = glyph_metric_array;
 	f->atlas_buffer = atlas_buffer;
 
 	return f;
-error2:
+error:
+	if (bitmap_bits) {
+		for (int i = 0; i < f->total_glyphs; i++) {
+			free(bitmap_bits[i]);
+		}
+	}
+	free(bitmap_bits);
+	free(bitmap_pitch);
 	free(atlas_buffer);
 	free(glyph_metric_array);
 	free(srcf);
@@ -611,9 +776,11 @@ error2:
 	free(gx);
 	free(gy);
 	free(dist);
-error1:
-	free(f->glyph_array);
-	free(f->kerning_table);
+	if (f) {
+		free(f->glyph_map);
+		free(f->glyphs);
+		free(f->kerning_table);
+	}
 	free(f);
 	return NULL;
 }
@@ -624,6 +791,8 @@ bool gltext_font_free(gltext_font_t font)
 	free(font->atlas_buffer);
 	free(font->glyph_metric_array);
 	free(font->kerning_table);
+	free(font->glyph_map);
+	free(font->glyphs);
 	free(font);
 	return true;
 }
