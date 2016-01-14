@@ -11,7 +11,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include "glplatform-glx.h"
-#include "glplatform_priv.h"
+#include "priv.h"
 
 int glplatform_epoll_fd = -1;
 

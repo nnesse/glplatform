@@ -1,5 +1,5 @@
 #include "glplatform.h"
-#include "glplatform-glcore.h"
+#include "glcore.h"
 
 #include <stdlib.h>
 #include <string.h>

@@ -1,8 +1,9 @@
 #include "glplatform.h"
 
-#include "glplatform-wgl.h"
-
 #include <wingdi.h>
+#include <windowsx.h>
+
+#include "wgl.h"
 
 //
 // wglGetProcAddress() only works if a WGL context is current so
@@ -14,8 +15,7 @@
 #undef wglMakeCurrent
 #undef wglCreateContext
 
-#include <windowsx.h>
-#include "glplatform_priv.h"
+#include "priv.h"
 
 static LRESULT CALLBACK PlatformWndProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 
@@ -378,9 +378,21 @@ void glplatform_make_current(struct glplatform_win *win, glplatform_gl_context_t
 glplatform_gl_context_t glplatform_create_context(struct glplatform_win *win, int maj_ver, int min_ver)
 {
 	HGLRC temp = wglCreateContext(win->hdc);
+	if (!temp)
+		return false;
 	wglMakeCurrent(win->hdc, temp);
-	glplatform_wgl_init(1, 0);
+	bool ret = glplatform_wgl_init(1, 0);
 	wglDeleteContext(temp);
+
+	if (!ret)
+		return 0;
+
+	if (!GLPLATFORM_WGL_ARB_create_context ||
+		!GLPLATFORM_WGL_ARB_create_context_profile ||
+		!GLPLATFORM_WGL_ARB_make_current_read) {
+
+		return 0;
+	}
 
 	int attribList[] = {
 		WGL_CONTEXT_MAJOR_VERSION_ARB, maj_ver,
@@ -468,6 +480,14 @@ void glplatform_show_window(struct glplatform_win *win)
 	ShowWindow(win->hwnd, SW_SHOWNORMAL);
 }
 
-//TODO
-//void glplatform_get_thread_state(struct glplatform_thread_state *state)
-//void glplatform_set_thread_state(const struct glplatform_thread_state *state)
+void glplatform_get_thread_state(struct glplatform_thread_state *state)
+{
+	state->read_dc = wglGetCurrentReadDCARB();
+	state->draw_dc = wglGetCurrentDC();
+	state->context = wglGetCurrentContext();
+}
+
+void glplatform_set_thread_state(const struct glplatform_thread_state *state)
+{
+	wglMakeContextCurrentARB(state->draw_dc, state->read_dc, state->context);
+}
